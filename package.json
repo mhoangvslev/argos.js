@@ -1,5 +1,5 @@
 {
-  "name": "argos",
+  "name": "argosjs",
   "version": "1.0.0",
   "description": "Ethereum smart-contract event visualiser ",
   "main": "index.js",
@@ -24,5 +24,6 @@
   "dependencies": {
     "ethers": "^4.0.27",
     "neode": "^0.2.15"
-  }
+  },
+  "devDependencies": {}
 }
