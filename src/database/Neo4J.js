@@ -1,18 +1,16 @@
 import * as Neode from 'neode';
-import Database from './Database';
 
-export default class Neo4J extends Database{
+export class Neo4J extends Database{
 
     /**
      * Create a connection to Neo4J database
-     * @param {string} bolt 
-     * @param {string} username 
-     * @param {string} password 
+     * @param {string} bolt neo4j bolt
+     * @param {string} username neo4j username
+     * @param {string} password neo4j password
      */
     constructor(bolt, username, password) {
         super();
-        this._dbInstance = new Neode(bolt, username, password);
-        this._modelAlias = '';
+        this.dbInstance = new Neode(bolt, username, password);
     }
 
     /**
@@ -22,12 +20,12 @@ export default class Neo4J extends Database{
      */
     createModel(pathToModel, alias) {
 
-        this._modelAlias = alias;
-        this._dbInstance.with({
+        this.modelAlias = alias;
+        this.dbInstance.with({
             alias: require('' + pathToModel)
         });
 
-        this._dbInstance.deleteAll(alias).then(() => {
+        this.dbInstance.deleteAll(alias).then(() => {
             console.log("Reset database");
         });
     }
@@ -58,8 +56,8 @@ export default class Neo4J extends Database{
 
         // Find nodes
         Promise.all([
-            this._dbInstance.mergeOn(this._modelAlias, startProps, startProps),
-            this._dbInstance.mergeOn(this._modelAlias, endProps, endProps),
+            this.dbInstance.mergeOn(this.modelAlias, startProps, startProps),
+            this.dbInstance.mergeOn(this.modelAlias, endProps, endProps),
         ]).then(
 
             // On fullfilled

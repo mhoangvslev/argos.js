@@ -1,24 +1,19 @@
-"use-strict"
-
-import Database from "./database/Database";
-import Watcher from "./watcher/Watcher";
+import Watcher from "./src/watcher/Watcher";
 
 export default class Argos {
 
     /**
-     * Create argos ibject
-     * @param {Database} database 
-     * @param {Watcher} watcher 
-     * @param {object} config 
+     * Create argos object
+     * @param {Watcher} watcher the watcher instance
      */
-    constructor(database, watcher, config){
-        this._database = database;
-        this._watcher = watcher;
+    constructor(watcher){
+        this.watcher = watcher;
     }
 
+    /**
+     * Start collecting events and persists data to the database
+     */
     initArgos() {
-        this._watcher.watchEvents();
+        this.watcher.watchEvents();
     }
 }
-
-module.exports = Argos;
