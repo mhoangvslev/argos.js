@@ -1,6 +1,10 @@
-import Database from "../database/Database";
+'use strict'
 
-export default class EthereumWatcher extends Watcher{
+import { ethers } from "ethers";
+import Database from "../database/Database";
+import { Watcher } from "./Watcher";
+
+export class EthereumWatcher extends Watcher{
 
     /**
      * Create a watcher for Ethereum network

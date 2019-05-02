@@ -1,13 +1,18 @@
-import { argos } from "../..";
+import { Database } from "./Database";
+import * as Neode from "neode";
 
-export declare class Database {
-    modelAlias: string;
+export declare class Neo4J extends Database {
+
+    readonly dbInstance: Neode;
 
     /**
-     * Create a Database
-     * @returns {Database}
+     * Create a connection to Neo4J database
+     * @param {string} bolt neo4j bolt
+     * @param {string} username neo4j username
+     * @param {string} password neo4j password
+     * @returns {Neo4J} Neo4J instance
      */
-    constructor();
+    constructor(bolt: string, username: string, password: string);
 
     /**
      * Load a model from file
@@ -18,13 +23,13 @@ export declare class Database {
 
     /**
      * Relate two given nodes
-     * @param {argos.NodeType} start start node
-     * @param {argos.NodeType} end end node
+     * @param {Neode.Node<any>} start start node
+     * @param {Neode.Node<any>} end end node
      * @param {string} startToEnd relationship name from model
      * @param {string} endToStart relationship name from model
      * @param {object} relProps relationship properties
      */
-    dbRelateNodes(start: argos.NodeType, end: argos.NodeType, startToEnd: string, endToStart: string, relProps: object): void;
+    dbRelateNodes(start: Neode.Node<any>, end: Neode.Node<any>, startToEnd: string, endToStart: string, relProps: object): void;
 
     /**
      * Create a pair of nodes then relate them

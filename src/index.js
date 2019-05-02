@@ -1,6 +1,6 @@
-import Watcher from "./src/watcher/Watcher";
+import { Watcher } from "./watcher/Watcher";
 
-export default class Argos {
+export class Argos {
 
     /**
      * Create argos object
@@ -17,3 +17,5 @@ export default class Argos {
         this.watcher.watchEvents();
     }
 }
+
+exports.Argos = Argos;

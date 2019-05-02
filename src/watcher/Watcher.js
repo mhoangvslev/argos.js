@@ -1,6 +1,8 @@
+'use strict'
+
 import { Database } from "../database/Database";
 
-export default class Watcher{
+export class Watcher{
 
     /**
      * Create a watcher for Ethereum network
@@ -14,21 +16,4 @@ export default class Watcher{
         console.log("Watcher " + typeof(this) + " created!");
     }
 
-    /**
-     * Get events from log 
-     * @param {string} eventName the event name to watch
-     * @param {string} fromBlock the start block, default is 0
-     * @param {string} toBlock  the ending block, default is 'lastest'
-     */
-    async getEvents(eventName, fromBlock = 0, toBlock = 'latest') {
-        console.log("Getting " + eventName + " events");
-    }
-
-    /**
-     * Watch eve
-     * @param {string} eventName 
-     */
-    async watchEvents(eventName) {
-        console.log('Start logging '+ eventName +' events')
-    }
 }

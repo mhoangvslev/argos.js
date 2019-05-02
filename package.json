@@ -1,9 +1,12 @@
 {
   "name": "argosjs",
-  "version": "0.0.1",
-  "description": "Ethereum smart-contract event visualiser ",
-  "main": "index.js",
+  "version": "0.0.2",
+  "description": "Ethereum smart-contract events visualiser ",
+  "main": "build/index.js",
+  "types": "types/index.d.ts",
   "scripts": {
+    "start": "nodemon --exec babel-node index.js",
+    "build": "rm -rf build; babel src -d build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -16,16 +19,23 @@
     "data-visualisation"
   ],
   "author": "Minh-Hoang DANG",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/mhoangvslev/argos.js/issues"
   },
   "homepage": "https://github.com/mhoangvslev/argos.js#readme",
   "dependencies": {
     "ethers": "^4.0.27",
-    "neode": "^0.2.15"
+    "neode": "^0.2.15",
+    "net": "^1.0.2"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@babel/cli": "^7.4.4",
+    "@babel/core": "^7.4.4",
+    "@babel/node": "^7.2.2",
+    "@babel/preset-env": "^7.4.4",
+    "nodemon": "^1.19.0"
+  },
   "directories": {
     "test": "test"
   }

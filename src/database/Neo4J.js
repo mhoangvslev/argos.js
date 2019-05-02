@@ -1,4 +1,7 @@
+'use strict'
+
 import * as Neode from 'neode';
+import Database from './Database';
 
 export class Neo4J extends Database{
 
