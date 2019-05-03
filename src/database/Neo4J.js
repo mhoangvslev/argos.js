@@ -1,9 +1,9 @@
 'use strict'
 
-import * as Neode from 'neode';
+import Neode from 'neode';
 import Database from './Database';
 
-export class Neo4J extends Database{
+export default class Neo4J extends Database{
 
     /**
      * Create a connection to Neo4J database
@@ -13,22 +13,20 @@ export class Neo4J extends Database{
      */
     constructor(bolt, username, password) {
         super();
-        this.dbInstance = new Neode(bolt, username, password);
+        this._dbInstance = new Neode(bolt, username, password);
     }
 
     /**
-     * Load a model from file
-     * @param {string} pathToModel relative path from current directory to model
-     * @param {string} alias alias
+     * Load a model
+     * @param {Neode.SchemaObject} model loaded model using require()
      */
-    createModel(pathToModel, alias) {
+    dbCreateModel(model) {
 
-        this.modelAlias = alias;
-        this.dbInstance.with({
-            alias: require('' + pathToModel)
+        this._dbInstance.with({
+            'Account': model
         });
 
-        this.dbInstance.deleteAll(alias).then(() => {
+        this._dbInstance.deleteAll('Account').then(() => {
             console.log("Reset database");
         });
     }
@@ -75,3 +73,5 @@ export class Neo4J extends Database{
         );
     }
 }
+
+export { Neo4J }

@@ -10,16 +10,14 @@ export declare class Neo4J extends Database {
      * @param {string} bolt neo4j bolt
      * @param {string} username neo4j username
      * @param {string} password neo4j password
-     * @returns {Neo4J} Neo4J instance
      */
     constructor(bolt: string, username: string, password: string);
 
     /**
-     * Load a model from file
-     * @param {string} pathToModel relative path from current directory to model
-     * @param {string} alias alias
+     * Load a model
+     * @param {Neode.SchemaObject} model loaded model using require()
      */
-    createModel(pathToModel: string, alias: string): void;
+    public dbCreateModel(model: Neode.SchemaObject): void;
 
     /**
      * Relate two given nodes
@@ -29,7 +27,7 @@ export declare class Neo4J extends Database {
      * @param {string} endToStart relationship name from model
      * @param {object} relProps relationship properties
      */
-    dbRelateNodes(start: Neode.Node<any>, end: Neode.Node<any>, startToEnd: string, endToStart: string, relProps: object): void;
+    public dbRelateNodes(start: Neode.Node<any>, end: Neode.Node<any>, startToEnd: string, endToStart: string, relProps: object): void;
 
     /**
      * Create a pair of nodes then relate them
@@ -39,5 +37,5 @@ export declare class Neo4J extends Database {
      * @param {string} endToStart relationship name from model
      * @param {object} relProps conditions to relate nodes
      */
-    dbCreateNodes(startProps: object, endProps: object, startToEnd: string, endToStart: string, relProps: object): void;
+    public dbCreateNodes(startProps: object, endProps: object, startToEnd: string, endToStart: string, relProps: object): void;
 }

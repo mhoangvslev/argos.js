@@ -6,7 +6,6 @@ export declare class Argos {
      /**
      * Create argos object
      * @param {Watcher} watcher the watcher instance
-     * @returns {Argos}
      */
     constructor(watcher: Watcher);
 

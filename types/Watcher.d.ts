@@ -7,27 +7,23 @@ export declare abstract class Watcher {
     contract: argos.ContractType
 
     /**
-     * Create a watcher for Ethereum network
-     * @param {string} contractAddr the address of the verified contract
-     * @param {string} abi the ABI of the verified contract
-     * @param {string} apiToken the Etherscan API Token
-     * @returns {Watcher}
+     * Create a watcher for any network
      */
-    constructor(contractAddr: string, abi: string, apiToken: string, dbService: Database);
+    constructor();
 
     /**
      * Get events from log 
      * @param {string} eventName the event name to watch
-     * @param {string} fromBlock the start block, default is 0
+     * @param {string | number} fromBlock the start block, default is 0
      * @param {string} toBlock  the ending block, default is 'lastest'
      * @returns {Promise<any[]>}
      */
-    abstract getEvents(eventName: string, fromBlock: string, toBlock: string): Promise<any[]>;
+    public abstract getEvents(eventName: string, fromBlock: string | number, toBlock: string): Promise<any[]>;
 
     /**
      * Watch eve
      * @param {string} eventName 
      * @returns {Promise<void>}
      */
-    abstract watchEvents(eventName: string): Promise<void>;
+    public abstract watchEvents(eventName: string): Promise<void>;
 }

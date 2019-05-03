@@ -3,15 +3,13 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.Neo4J = void 0;
+exports.Neo4J = exports.default = void 0;
 
-var Neode = _interopRequireWildcard(require("neode"));
+var _neode = _interopRequireDefault(require("neode"));
 
 var _Database = _interopRequireDefault(require("./Database"));
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) { var desc = Object.defineProperty && Object.getOwnPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : {}; if (desc.get || desc.set) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } } newObj.default = obj; return newObj; } }
 
 class Neo4J extends _Database.default {
   /**
@@ -22,21 +20,20 @@ class Neo4J extends _Database.default {
    */
   constructor(bolt, username, password) {
     super();
-    this.dbInstance = new Neode(bolt, username, password);
+    this._dbInstance = new _neode.default(bolt, username, password);
   }
   /**
-   * Load a model from file
-   * @param {string} pathToModel relative path from current directory to model
-   * @param {string} alias alias
+   * Load a model
+   * @param {Neode.SchemaObject} model loaded model using require()
    */
 
 
-  createModel(pathToModel, alias) {
-    this.modelAlias = alias;
-    this.dbInstance.with({
-      alias: require('' + pathToModel)
+  dbCreateModel(model) {
+    this._dbInstance.with({
+      'Account': model
     });
-    this.dbInstance.deleteAll(alias).then(() => {
+
+    this._dbInstance.deleteAll('Account').then(() => {
       console.log("Reset database");
     });
   }
@@ -83,4 +80,4 @@ class Neo4J extends _Database.default {
 
 }
 
-exports.Neo4J = Neo4J;
+exports.Neo4J = exports.default = Neo4J;

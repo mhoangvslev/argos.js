@@ -3,16 +3,16 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.default = void 0;
+exports.Database = exports.default = void 0;
 
 class Database {
   /**
    * Create a Database
    */
   constructor() {
-    this.modelAlias = '';
+    console.log('Database instance created!');
   }
 
 }
 
-exports.default = Database;
+exports.Database = exports.default = Database;

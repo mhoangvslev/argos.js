@@ -3,7 +3,37 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.Argos = void 0;
+Object.defineProperty(exports, "Neo4J", {
+  enumerable: true,
+  get: function () {
+    return _Neo4J.Neo4J;
+  }
+});
+Object.defineProperty(exports, "Database", {
+  enumerable: true,
+  get: function () {
+    return _Database.Database;
+  }
+});
+Object.defineProperty(exports, "EthereumWatcher", {
+  enumerable: true,
+  get: function () {
+    return _EthereumWatcher.EthereumWatcher;
+  }
+});
+Object.defineProperty(exports, "Watcher", {
+  enumerable: true,
+  get: function () {
+    return _Watcher.Watcher;
+  }
+});
+exports.Argos = exports.default = void 0;
+
+var _Neo4J = require("./database/Neo4J");
+
+var _Database = require("./database/Database");
+
+var _EthereumWatcher = require("./watcher/EthereumWatcher");
 
 var _Watcher = require("./watcher/Watcher");
 
@@ -21,10 +51,9 @@ class Argos {
 
 
   initArgos() {
-    this.watcher.watchEvents();
+    this.watcher.watchEvents('Transfer');
   }
 
 }
 
-exports.Argos = Argos;
-exports.Argos = Argos;
+exports.Argos = exports.default = Argos;

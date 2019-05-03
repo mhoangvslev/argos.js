@@ -14,7 +14,6 @@ export declare class EthereumWatcher extends Watcher {
      * @param {string} abi the ABI of the verified contract
      * @param {string} apiToken the Etherscan API Token
      * @param {Database} dbService the database servcice
-     * @returns {EthereumWatcher} EthereumWatcher instance
      */
     constructor(contractAddr: string, abi: string, apiToken: string, dbService: Database);
 
@@ -25,12 +24,12 @@ export declare class EthereumWatcher extends Watcher {
      * @param {string} toBlock  the ending block, default is 'lastest'
      * @returns {Promise<any[]>}
      */
-    getEvents(eventName: string, fromBlock: string, toBlock: string): Promise<any[]>;
+    public getEvents(eventName: string, fromBlock: string, toBlock: string): Promise<any[]>;
 
     /**
      * Watch eve
      * @param {string} eventName 
      * @returns {Promise<void>}
      */
-    watchEvents(eventName: string): Promise<void>;
+    public watchEvents(eventName: string): Promise<void>;
 }

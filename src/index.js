@@ -1,6 +1,9 @@
-import { Watcher } from "./watcher/Watcher";
+import {Neo4J} from './database/Neo4J';
+import {Database} from './database/Database';
+import {EthereumWatcher} from './watcher/EthereumWatcher';
+import {Watcher} from "./watcher/Watcher";
 
-export class Argos {
+export default class Argos {
 
     /**
      * Create argos object
@@ -14,8 +17,8 @@ export class Argos {
      * Start collecting events and persists data to the database
      */
     initArgos() {
-        this.watcher.watchEvents();
+        this.watcher.watchEvents('Transfer');
     }
 }
 
-exports.Argos = Argos;
+export { Argos, Watcher, Database, Neo4J, EthereumWatcher };

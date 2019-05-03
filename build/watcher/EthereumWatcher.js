@@ -3,13 +3,17 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.EthereumWatcher = void 0;
+exports.EthereumWatcher = exports.default = void 0;
 
 var _ethers = require("ethers");
 
 var _Database = _interopRequireDefault(require("../database/Database"));
 
 var _Watcher = require("./Watcher");
+
+var Neode = _interopRequireWildcard(require("neode"));
+
+function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) { var desc = Object.defineProperty && Object.getOwnPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : {}; if (desc.get || desc.set) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } } newObj.default = obj; return newObj; } }
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -32,7 +36,7 @@ class EthereumWatcher extends _Watcher.Watcher {
   /**
    * Get events from log 
    * @param {string} eventName the event name to watch
-   * @param {string} fromBlock the start block, default is 0
+   * @param {string | number} fromBlock the start block, default is 0
    * @param {string} toBlock  the ending block, default is 'lastest'
    */
 
@@ -45,18 +49,20 @@ class EthereumWatcher extends _Watcher.Watcher {
       toBlock,
       address: this._contractAddr,
       topics: [event.topic]
+    }).catch(reason => {
+      console.log(reason);
     });
     return logs.map(log => event.decode(log.data, log.topics));
   }
   /**
-   * Watch eve
-   * @param {string} eventName 
+   * Watch event with particular model
+   * @param {string} eventName name of the event, usually 'Transfer'
+   * @param { Neode.SchemaObject } dbModel the model loaded via require()
    */
 
 
   async watchEvents(eventName) {
     console.log('Start logging ' + eventName + ' events');
-    this.dbService.dbCreateModel();
     const events = await this.getEvents(eventName); //console.log(events);
 
     var p = Promise.resolve();
@@ -72,4 +78,4 @@ class EthereumWatcher extends _Watcher.Watcher {
 
 }
 
-exports.EthereumWatcher = EthereumWatcher;
+exports.EthereumWatcher = exports.default = EthereumWatcher;

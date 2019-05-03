@@ -3,8 +3,9 @@
 import { ethers } from "ethers";
 import Database from "../database/Database";
 import { Watcher } from "./Watcher";
+import * as Neode from "neode";
 
-export class EthereumWatcher extends Watcher{
+export default class EthereumWatcher extends Watcher{
 
     /**
      * Create a watcher for Ethereum network
@@ -25,7 +26,7 @@ export class EthereumWatcher extends Watcher{
     /**
      * Get events from log 
      * @param {string} eventName the event name to watch
-     * @param {string} fromBlock the start block, default is 0
+     * @param {string | number} fromBlock the start block, default is 0
      * @param {string} toBlock  the ending block, default is 'lastest'
      */
     async getEvents(eventName, fromBlock = 0, toBlock = 'latest') {
@@ -38,20 +39,22 @@ export class EthereumWatcher extends Watcher{
             toBlock,
             address: this._contractAddr,
             topics: [event.topic]
+        }).catch((reason) => {
+            console.log(reason);
         });
 
         return logs.map(log => event.decode(log.data, log.topics))
     }
 
     /**
-     * Watch eve
-     * @param {string} eventName 
+     * Watch event with particular model
+     * @param {string} eventName name of the event, usually 'Transfer'
+     * @param { Neode.SchemaObject } dbModel the model loaded via require()
      */
     async watchEvents(eventName) {
 
         console.log('Start logging '+ eventName +' events')
 
-        this.dbService.dbCreateModel();
         const events = await this.getEvents(eventName);
 
         //console.log(events);
@@ -70,3 +73,5 @@ export class EthereumWatcher extends Watcher{
         console.log("Database updated!");
     }
 }
+
+export { EthereumWatcher }

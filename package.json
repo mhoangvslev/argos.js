@@ -1,11 +1,11 @@
 {
   "name": "argosjs",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Ethereum smart-contract events visualiser ",
   "main": "build/index.js",
   "types": "types/index.d.ts",
   "scripts": {
-    "start": "nodemon --exec babel-node index.js",
+    "start": "",
     "build": "rm -rf build; babel src -d build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -33,8 +33,13 @@
     "@babel/cli": "^7.4.4",
     "@babel/core": "^7.4.4",
     "@babel/node": "^7.2.2",
+    "@babel/plugin-transform-classes": "^7.4.4",
+    "@babel/plugin-transform-modules-commonjs": "^7.4.4",
     "@babel/preset-env": "^7.4.4",
-    "nodemon": "^1.19.0"
+    "del": "^4.1.1",
+    "gulp": "^4.0.1",
+    "gulp-babel": "^8.0.0",
+    "run-sequence": "^2.2.1"
   },
   "directories": {
     "test": "test"
