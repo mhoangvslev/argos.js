@@ -22,6 +22,8 @@ export default class Neo4J extends Database{
      */
     dbCreateModel(model) {
 
+        console.log('Model: ', model);
+
         this._dbInstance.with({
             'Account': model
         });
@@ -57,8 +59,8 @@ export default class Neo4J extends Database{
 
         // Find nodes
         Promise.all([
-            this.dbInstance.mergeOn(this.modelAlias, startProps, startProps),
-            this.dbInstance.mergeOn(this.modelAlias, endProps, endProps),
+            this._dbInstance.mergeOn('Account', startProps, startProps),
+            this._dbInstance.mergeOn('Account', endProps, endProps),
         ]).then(
 
             // On fullfilled

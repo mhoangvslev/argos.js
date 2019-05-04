@@ -15,7 +15,7 @@ export declare abstract class Watcher {
      * Get events from log 
      * @param {string} eventName the event name to watch
      * @param {string | number} fromBlock the start block, default is 0
-     * @param {string} toBlock  the ending block, default is 'lastest'
+     * @param {string | number} toBlock  the ending block, default is 'lastest'
      * @returns {Promise<any[]>}
      */
     public abstract getEvents(eventName: string, fromBlock: string | number, toBlock: string): Promise<any[]>;

@@ -4,8 +4,9 @@ import { ethers } from "ethers";
 import Database from "../database/Database";
 import { Watcher } from "./Watcher";
 import * as Neode from "neode";
+import { concurrent } from "concurrent-worker";
 
-export default class EthereumWatcher extends Watcher{
+export default class EthereumWatcher extends Watcher {
 
     /**
      * Create a watcher for Ethereum network
@@ -17,31 +18,55 @@ export default class EthereumWatcher extends Watcher{
      */
     constructor(contractAddr, abi, apiToken, dbService) {
         super();
-        this.provider = new ethers.providers.EtherscanProvider('homestead', apiToken);
-        this.dbService = dbService;
-        this.contract = new ethers.Contract(contractAddr, abi, this.provider);
-        console.log(this.contract);
+        this._contractAddr = contractAddr;
+        this._dbService = dbService;
+
+        this._provider = new ethers.providers.EtherscanProvider('homestead', apiToken);
+        this._contract = new ethers.Contract(this._contractAddr, abi, this._provider);
+        console.log(this._contract);
     }
 
     /**
      * Get events from log 
      * @param {string} eventName the event name to watch
      * @param {string | number} fromBlock the start block, default is 0
-     * @param {string} toBlock  the ending block, default is 'lastest'
+     * @param {string | number} toBlock  the ending block, default is 'lastest'
      */
-    async getEvents(eventName, fromBlock = 0, toBlock = 'latest') {
+    async getEvents(eventName, fromBlock = 0, toBlock = 'latest', nbThreads = 2) {
 
-        console.log("Getting events '" + eventName + "' from block #" + fromBlock + " to block #" + toBlock)
-        let event = this.contract.interface.events[eventName];
+        const latestBlock = await this._provider.getBlockNumber();
+        const tBlock = toBlock == 'latest' ? latestBlock : toBlock;
 
-        let logs = await this.provider.getLogs({
+        var event = this._contract.interface.events[eventName];
+
+        //console.log("Provider: ", provider, "Address: ", address);
+        console.log("Getting events '" + event + "' from block #" + fromBlock + " to block #" + tBlock);
+
+        const logs = await this._provider.getLogs({
             fromBlock,
             toBlock,
             address: this._contractAddr,
             topics: [event.topic]
-        }).catch((reason) => {
-            console.log(reason);
         });
+
+        /*
+        const concurrentWorker = concurrent(getEventPatch);
+        var tasks = [];
+
+        const range = Math.ceil((tBlock - fromBlock) / nbThreads);
+        let start = fromBlock;
+
+        for (let i = 0; i < nbThreads; i++) {
+            const tStart = start;
+            const task = concurrentWorker.run([this._provider, this._contractAddr, event, tStart, tStart + range]);
+            tasks = tasks.concat(task);
+            start += range;
+        }
+
+        const processes = Promise.all(tasks);
+        const results = await processes;
+        const logs = results.reduce( (prev, current) => (prev.concat(current)), [] );
+        */
 
         return logs.map(log => event.decode(log.data, log.topics))
     }
@@ -53,7 +78,7 @@ export default class EthereumWatcher extends Watcher{
      */
     async watchEvents(eventName) {
 
-        console.log('Start logging '+ eventName +' events')
+        console.log('Start logging ' + eventName + ' events')
 
         const events = await this.getEvents(eventName);
 
@@ -67,7 +92,7 @@ export default class EthereumWatcher extends Watcher{
             let value = event.value;
             let strValue = value.toString();
 
-            this.dbService.dbCreateNode(sender, receiver, strValue);
+            this._dbService.dbCreateNodes({ address: sender }, { address: receiver }, 'send', 'receive', { amount: strValue });
 
         });
         console.log("Database updated!");

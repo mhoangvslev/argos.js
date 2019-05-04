@@ -20,11 +20,11 @@ export declare class EthereumWatcher extends Watcher {
     /**
      * Get events from log 
      * @param {string} eventName the event name to watch
-     * @param {string} fromBlock the start block, default is 0
-     * @param {string} toBlock  the ending block, default is 'lastest'
+     * @param {string | number} fromBlock the start block, default is 0
+     * @param {string | number} toBlock  the ending block, default is 'lastest'
      * @returns {Promise<any[]>}
      */
-    public getEvents(eventName: string, fromBlock: string, toBlock: string): Promise<any[]>;
+    public getEvents(eventName: string, fromBlock: string | number, toBlock: string | number): Promise<any[]>;
 
     /**
      * Watch eve

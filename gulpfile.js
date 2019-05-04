@@ -10,7 +10,7 @@ gulp.task('clean', done => {
 gulp.task('build', done => {
     gulp.src('src/**/*.js')
         .pipe(babel({
-            plugins: ["@babel/plugin-transform-modules-commonjs"],
+            plugins: ["@babel/plugin-transform-classes", "@babel/plugin-transform-modules-commonjs"],
             presets: [
                 [
                     "@babel/preset-env",
@@ -27,5 +27,5 @@ gulp.task('build', done => {
 });
 
 gulp.task('default', gulp.series('clean', 'build') , done => {
-    done()
+    done();
 });
