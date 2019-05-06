@@ -1,0 +1,3 @@
+[submodule "examples/ArgosJS"]
+	path = examples/ArgosJS
+	url = https://github.com/mhoangvslev/ArgosJS.git
