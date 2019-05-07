@@ -1,8 +1,11 @@
 # argos.js
-> An API that provides the ability to watch any smart-contract events
+> An API that provides the ability to watch any smart-contract events, on any blockchain
 
 [![NPM Version][npm-image]][npm-url]
 [![Linux Build][travis-image]][travis-url]
+
+## Context
+With the smart-contracts, we are able to make exchanges with complex arbitrary rules. By looking at the log entries data, we hope to extract meaningful/valuable information that provide great assistance in decision-making process.
 
 ## Install
 
@@ -23,6 +26,9 @@ const panoptes = new Argos(this._contractService);
 
 panoptes.initArgos();
 ```
+
+## TO DO
+- 
 
 ## License
 

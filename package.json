@@ -1,6 +1,6 @@
 {
   "name": "argosjs",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Ethereum smart-contract events visualiser ",
   "main": "build/index.js",
   "types": "types/index.d.ts",
@@ -28,7 +28,8 @@
     "concurrent-worker": "^1.1.1",
     "ethers": "^4.0.27",
     "neode": "^0.2.15",
-    "net": "^1.0.2"
+    "net": "^1.0.2",
+    "web3": "^1.0.0-beta.54"
   },
   "devDependencies": {
     "@babel/cli": "^7.4.4",
@@ -37,12 +38,16 @@
     "@babel/plugin-transform-classes": "^7.4.4",
     "@babel/plugin-transform-modules-commonjs": "^7.4.4",
     "@babel/preset-env": "^7.4.4",
-    "@types/node": "^11.13.9",
+    "@types/node": "^11.13.10",
     "del": "^4.1.1",
-    "gulp": "^4.0.1",
-    "gulp-babel": "^8.0.0"
+    "gulp": "^4.0.2",
+    "gulp-babel": "^8.0.0",
+    "gulp-jsdoc3": "^2.0.0",
+    "gulp-typedoc": "^2.2.2",
+    "jsdoc": "^3.6.1",
+    "typedoc": "^0.14.2"
   },
   "directories": {
-    "test": "test"
+    "example": "examples"
   }
 }

@@ -3,17 +3,43 @@
 import Neode from 'neode';
 import Database from './Database';
 
-export default class Neo4J extends Database{
+export default class Neo4J extends Database {
 
     /**
      * Create a connection to Neo4J database
-     * @param {string} bolt neo4j bolt
+     * @param {string} connection neo4j bolt
      * @param {string} username neo4j username
      * @param {string} password neo4j password
+     * @param {boolean} enterpriseMode neo4j enterprise mode
      */
-    constructor(bolt, username, password) {
+    constructor(connection, username, password, enterpriseMode) {
         super();
-        this._dbInstance = new Neode(bolt, username, password);
+        this._connection = connection;
+        this._username = username;
+        this._password = password;
+        this._dbInstance = new Neode(this._connection, this._username, this._password, enterpriseMode);
+    }
+
+    /**
+     * Connect to the database
+     */
+    dbConnect() {
+        this._dbInstance.session();
+    }
+
+    /**
+     * Reconnect to the database
+     */
+    dbReconnect() {
+        this.dbTerminate();
+        this.dbConnect();
+    }
+
+    /**
+     * Close connection to the database
+     */
+    dbTerminate() {
+        this._dbInstance.close();
     }
 
     /**
@@ -21,6 +47,8 @@ export default class Neo4J extends Database{
      * @param {Neode.SchemaObject} model loaded model using require()
      */
     dbCreateModel(model) {
+
+        //this.dbReconnect();
 
         console.log('Model: ', model);
 
@@ -31,48 +59,40 @@ export default class Neo4J extends Database{
         this._dbInstance.deleteAll('Account').then(() => {
             console.log("Reset database");
         });
+
+        //this.dbTerminate();
     }
 
     /**
      * Relate two given nodes
      * @param {Neode.Node<any>} start start node
      * @param {Neode.Node<any>} end end node
-     * @param {string} startToEnd relationship name from model
-     * @param {string} endToStart relationship name from model
+     * @param {string} relType relationship name from model
      * @param {object} relProps relationship properties
+     * @return {Promise<void | Neode.Relationship>} the ongoing process
      */
-    dbRelateNodes(start, end, startToEnd, endToStart, relProps) {
+    async dbRelateNodes(start, end, relType, relProps) {
         // Create relationships
-        start.relateTo(end, startToEnd, relProps).catch((error) => { console.log("Could not relate nodes", error); });
-        end.relateTo(start, endToStart, relProps).catch((error) => { console.log("Could not relate nodes", error); });;
+        return Promise.all([
+            start.relateTo(end, relType, relProps).catch((error) => { console.log("Could not relate nodes", error); }),
+        ]);
     }
 
     /**
      * Create a pair of nodes then relate them
      * @param {object} startProps conditions to match start node
      * @param {object} endProps conditions to match end node
-     * @param {string} startToEnd relationship name from model
-     * @param {string} endToStart relationship name from model
+     * @param {string} relType relationship name from model
      * @param {object} relProps conditions to relate nodes
      */
-    dbCreateNodes(startProps, endProps, startToEnd, endToStart, relProps) {
-
+    async dbCreateNodes(startProps, endProps, relType, relProps) {
         // Find nodes
-        Promise.all([
+        const [start, end] = await Promise.all([
             this._dbInstance.mergeOn('Account', startProps, startProps),
             this._dbInstance.mergeOn('Account', endProps, endProps),
-        ]).then(
+        ]);
 
-            // On fullfilled
-            ([start, end]) => {
-                this.dbRelateNodes(start, end, startToEnd, endToStart, relProps);
-            },
-
-            // On rejected
-            (error) => {
-                console.log("Could not create/update node", error);
-            }
-        );
+        await this.dbRelateNodes(start, end, relType, relProps);
     }
 }
 
