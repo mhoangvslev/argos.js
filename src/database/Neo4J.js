@@ -11,13 +11,26 @@ export default class Neo4J extends Database {
      * @param {string} username neo4j username
      * @param {string} password neo4j password
      * @param {boolean} enterpriseMode neo4j enterprise mode
+     * @param {object} settings neo4 driver settings
      */
-    constructor(connection, username, password, enterpriseMode) {
+    constructor(connection, username, password, enterpriseMode, settings) {
         super();
         this._connection = connection;
         this._username = username;
         this._password = password;
-        this._dbInstance = new Neode(this._connection, this._username, this._password, enterpriseMode);
+        this._dbInstance = new Neode(this._connection, this._username, this._password, enterpriseMode, settings);
+    }
+
+    /**
+     * Create a connection to Neo4J database
+     * @param {string} connection neo4j bolt
+     * @param {string} username neo4j username
+     * @param {string} password neo4j password
+     * @param {boolean} enterpriseMode neo4j enterprise mode
+     * @param {object} settings neo4 driver settings
+     */
+    static createInstance(connection, username, password, enterpriseMode, settings) {
+        return new Neo4J(connection, username, password, enterpriseMode, settings);
     }
 
     /**
@@ -47,20 +60,19 @@ export default class Neo4J extends Database {
      * @param {Neode.SchemaObject} model loaded model using require()
      */
     dbCreateModel(model) {
-
-        //this.dbReconnect();
-
-        console.log('Model: ', model);
-
+        //console.log('Model: ', model);
         this._dbInstance.with({
             'Account': model
         });
+    }
 
+    /**
+     * Delete all entry in the database
+     */
+    dbClearAll() {
         this._dbInstance.deleteAll('Account').then(() => {
             console.log("Reset database");
         });
-
-        //this.dbTerminate();
     }
 
     /**
@@ -87,12 +99,33 @@ export default class Neo4J extends Database {
      */
     async dbCreateNodes(startProps, endProps, relType, relProps) {
         // Find nodes
-        const [start, end] = await Promise.all([
-            this._dbInstance.mergeOn('Account', startProps, startProps),
-            this._dbInstance.mergeOn('Account', endProps, endProps),
+        let [start, end] = await Promise.all([
+            this._dbInstance.mergeOn("Account", startProps, startProps),
+            this._dbInstance.mergeOn("Account", endProps, endProps)
+
         ]);
 
         await this.dbRelateNodes(start, end, relType, relProps);
+    }
+
+    /**
+     * Tell the database to execute a query
+     * @param {import('../../types').QueryData} query where parameters
+     * @returns {Promise<any>} the result of queries
+     */
+    async executeQuery(queryData) {
+        const summary = await this._dbInstance.cypher(queryData.query, queryData.params);
+        return summary.records;
+    }
+
+    /**
+     * Tell the database to execute a query
+     * @param {string} queries a string query 
+     * @returns {Promise<any>} the result of queries
+     */
+    async executeQueries(queries) {
+        const summary = await this._dbInstance.batch(queries);
+        return summary.records;
     }
 }
 

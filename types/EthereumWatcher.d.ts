@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 import { Watcher } from "./Watcher";
 import { Database } from "./Database";
+import { DatabaseEnum, DatabaseConstructor } from ".";
 
 export const enum ProviderEnum {
     defaultProvider = 0,
@@ -21,18 +22,24 @@ export declare class EthereumWatcher extends Watcher {
      * @param {string} contractAddr the address of the verified contract
      * @param {string} abi the ABI of the verified contract
      * @param {number} providerType the Etherscan API Token
-     * @param { Database } dbService the database servcice
-     * @param {object} config the loaded config file
+     * @param { DatabaseConstructor } dbType the database servcice constructor
+     * @param {object} providerConfig the loaded config file
+     * @param {boolean} clearDB retrieve from genesis block instead of the latest in DB (db cleared)
      * @returns {EthereumWatcher} Ethereum instance
      */
-    constructor(contractAddr: string, abi: string, providerType: number, dbService: Database, config: object);
+    constructor(contractAddr: string, abi: string, providerType: number, dbType: DatabaseConstructor, providerConfig: object, clearDB: boolean);
+
+    /**
+     * Refresh the database connection
+     */
+    private interactDB();
 
     /**
      * Get events from log 
      * @param {string} eventName the event name to watch
      * @param {string | number} fromBlock the start block, default is 0
      * @param {string | number} toBlock  the ending block, default is 'lastest'
-     * @returns {Promise<any[]>}
+     * @param {number} nbTasks how many batches required to process the log
      */
     public getEvents(eventName: string, fromBlock: string | number, toBlock: string | number): Promise<any[]>;
 

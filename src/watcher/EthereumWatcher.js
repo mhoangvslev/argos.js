@@ -1,11 +1,11 @@
 'use strict'
 
 import { ethers } from "ethers";
-import Database from "../database/Database";
 import { Watcher } from "./Watcher";
 import * as Neode from "neode";
 import { v1 as neo4j } from 'neo4j-driver';
 import Web3 from "web3";
+import DatabaseFactory from "../factory/DatabaseFactory";
 
 export const ProviderEnum = {
     defaultProvider: 0,
@@ -23,11 +23,12 @@ export default class EthereumWatcher extends Watcher {
      * @param {string} contractAddr the address of the verified contract
      * @param {string} abi the ABI of the verified contract
      * @param {number} providerType the Etherscan API Token
-     * @param { Database } dbService the database servcice
-     * @param {object} config the loaded config file
+     * @param { DatabaseConstructor } dbType the database servcice constructor
+     * @param {object} providerConfig the loaded config file
+     * @param {boolean} clearDB retrieve from genesis block instead of the latest in DB (db cleared)
      * @returns {EthereumWatcher} Ethereum instance
      */
-    constructor(contractAddr, abi, providerType, dbService, config) {
+    constructor(contractAddr, abi, providerType, dbType, providerConfig, clearDB) {
         super();
 
         /**
@@ -37,6 +38,7 @@ export default class EthereumWatcher extends Watcher {
          * @returns {ethers.providers.BaseProvider} a provider
          */
         function getProvider(providerType, config) {
+
             switch (providerType) {
                 case ProviderEnum.defaulProvider: default:
                     return new ethers.getDefaultProvider();
@@ -45,7 +47,6 @@ export default class EthereumWatcher extends Watcher {
                     return new ethers.providers.EtherscanProvider(ethers.utils.getNetwork(config.etherscan.network), config.etherscan.api);
 
                 case ProviderEnum.InfuraProvider:
-                    //console.log("Infura: ", config.infura.projectId, "@", config.infura.network);
                     return new ethers.providers.InfuraProvider(ethers.utils.getNetwork(config.infura.network), config.infura.projectId);
 
                 case ProviderEnum.JsonRpcProvider:
@@ -68,11 +69,30 @@ export default class EthereumWatcher extends Watcher {
         }
 
         this._contractAddr = contractAddr;
-        this._dbService = dbService;
+        this._dbType = dbType;
+        this._dbService = undefined;
+        this._clearDB = clearDB;
 
-        this._provider = getProvider(providerType, config);
+        this._config = providerConfig;
+
+        this._provider = getProvider(providerType, providerConfig);
         this._contract = new ethers.Contract(this._contractAddr, abi, this._provider);
-        //console.log(this._contract);
+    }
+
+    /**
+     * Refresh the database connection, do an action then close connection
+     * @param {function} callback the action to perform once the connection is interupted
+     */
+    refreshDB() {
+        if (this._dbService !== undefined)
+            this._dbService.dbTerminate();
+
+        this._dbService = DatabaseFactory.createDbInstance(this._dbType);
+        this._dbService.dbCreateModel(this._dbType.model);
+
+        if(this._clearDB) {
+            this._dbService.dbClearAll();
+        }
     }
 
     /**
@@ -80,16 +100,46 @@ export default class EthereumWatcher extends Watcher {
      * @param {string} eventName the event name to watch
      * @param {string | number} fromBlock the start block, default is 0
      * @param {string | number} toBlock  the ending block, default is 'lastest'
+     * @param {number} nbTasks how many batches required to process the log
      */
-    async getEvents(eventName, fromBlock = 0, toBlock = 'latest', nbThreads = 5) {
+    async getEvents(eventName, fromBlock = 0, toBlock = 'latest') {
+
+        this.refreshDB();
+
+        const latestInDB = await this._dbService.executeQuery({
+            query: 'MATCH (n) WHERE EXISTS(n.blockheight) RETURN DISTINCT "node" as entity, n.blockheight AS blockheight UNION ALL MATCH ()-[r]-() WHERE EXISTS(r.blockheight) RETURN DISTINCT "relationship" AS entity, r.blockheight AS blockheight ORDER BY r.blockheight DESC LIMIT 1',
+            params: {
+
+            }
+        });
+
+        const fBlock = this._clearDB ? (fromBlock == 'earliest' ? 0 : fromBlock) : latestInDB[0].get("blockheight");
+        this._dbService.dbTerminate();
+
 
         const latestBlock = await this._provider.getBlockNumber();
         const tBlock = toBlock == 'latest' ? latestBlock : toBlock;
 
-        var event = this._contract.interface.events[eventName];
+        const provider = this._provider;
+        const address = this._contractAddr;
+        const contract = this._contract;
 
+        let logs = [];
+        let event = this._contract.interface.events[eventName];
+
+        console.log("Latest block in blockchain is #" + tBlock)
+
+
+        /**
+         * 
+         * @param {ethers.providers.BaseProvider} provider 
+         * @param {string} address 
+         * @param {number} fromBlock 
+         * @param {number} toBlock 
+         * @returns {Promise<ethers.providers.Log[]>}
+         */
         function getEventPatch(provider, address, fromBlock, toBlock) {
-            console.log("Getting events '" + event.topic + "' from block #" + fromBlock + " to block #" + toBlock);
+            console.log("Getting events '" + eventName + "' from block #" + fromBlock + " to block #" + toBlock);
 
             return provider.getLogs({
                 fromBlock,
@@ -99,36 +149,80 @@ export default class EthereumWatcher extends Watcher {
             });
         }
 
-        async function getLogData(log, provider, contract) {
+        /**
+         * Assemble a selection of data out of a log part
+         * @param {ethers.providers.Log[]} log the extracted log part
+         * @returns { import("../../types").EventInfoDataStruct } the required information to build a db node
+         */
+        async function getLogData(log) {
 
-            const data = event.decode(log.data, log.topics);
+            if (log.length == 0) return [];
 
-            const sender = data.from;
-            const receiver = data.to;
+            /**
+             * Extract data from log entry
+             * @param {ethers.providers.Log} logEntry a log entry
+             * @returns {import("../../types").EventInfoDataStruct} the required information to build a db node
+             */
+            async function extractData(logEntry) {
+                const data = event.decode(logEntry.data, logEntry.topics);
 
-            const decimals = await contract.decimals();
-            const value = ethers.utils.formatUnits(data.value, decimals);
+                const sender = data["0"];
+                const receiver = data["1"];
+                const value = data["2"];
 
-            const blockNumber = log.blockNumber;
-            const block = await provider.getBlock(blockNumber);
+                const decimals = await contract.decimals();
+                const displayValue = ethers.utils.formatUnits(value, decimals);
 
-            const unix_timestamp = block.timestamp;
-            const jsDate = new Date(unix_timestamp * 1000);
-            const neoDate = new neo4j.types.Date.fromStandardDate(jsDate);
+                const blockNumber = logEntry.blockNumber;
+                const block = await provider.getBlock(blockNumber);
+
+                const unix_timestamp = ethers.utils.bigNumberify(block.timestamp).toNumber();
+                const jsDate = new Date(unix_timestamp * 1000);
+                const neoDate = new neo4j.types.DateTime.fromStandardDate(jsDate);
 
 
-            return {
-                blockNumber: log.blockNumber,
-                date: neoDate,
-                from: sender,
-                to: receiver,
-                value: value
+                return {
+                    blockNumber: logEntry.blockNumber,
+                    date: jsDate,
+                    from: sender,
+                    to: receiver,
+                    value: displayValue
+                }
+            }
+
+            const result = await Promise.all(log.map(logEntry => extractData(logEntry)));
+            logs = logs.concat(result);
+            return result;
+        }
+
+        // Start serial tasks
+        let start = fBlock;
+        let end = tBlock;
+
+        while (start != end) {
+            let log = undefined;
+
+            await getEventPatch(provider, address, start, end)
+                .then(async (result) => {
+                    log = await getLogData(result);
+                    start = end == tBlock ? end : end + 1;
+                    end = tBlock;
+                })
+                .catch((reason) => { });
+
+            // Devide the batch by 2 until the right amount is found
+            while (log === undefined) {
+                end = start + Math.floor((end - start) / 2);
+                await getEventPatch(provider, address, start, end)
+                    .then(async (result) => {
+                        log = await getLogData(result);
+                    })
+                    .catch((reason) => { });
             }
         }
 
-        const logs = await getEventPatch(this._provider, this._contractAddr, fromBlock, tBlock);
-
-        return await Promise.all(logs.map(log => getLogData(log, this._provider, this._contract)));
+        console.log(logs.length + " event(s) detected!");
+        return logs;
     }
 
     /**
@@ -143,25 +237,31 @@ export default class EthereumWatcher extends Watcher {
 
         const startTime = new Date();
 
-        const events = await this.getEvents(eventName).catch((reason) => { console.log(reason) });
+        await this.getEvents(eventName)
+            .then((events) => {
 
-        events.forEach((event) => {
-            this._dbService.dbCreateNodes(
-                { address: event.from },
-                { address: event.to },
-                usingRel,
-                { amount: event.value, blockheight: event.blockNumber, date: event.date }
-            );
+                this.refreshDB();
+                events.forEach((event) => {
+                    this._dbService.dbCreateNodes(
+                        { address: event.from },
+                        { address: event.to },
+                        usingRel,
+                        { amount: event.value, blockheight: event.blockNumber, date: event.date }
+                    );
+                });
+                this._dbService.dbTerminate();
 
-        });
+                console.log("Database updated!");
 
-        console.log("Database updated!");
+            })
+            .catch((reason) => {
+                console.error("Could not retrieve " + eventName + " events", reason);
+            });
 
         const endTime = new Date();
         const elapsedTime = Math.round(endTime - startTime);
 
         console.log("Finished in " + elapsedTime + " ms", "or " + (elapsedTime / 1000) + " s");
-
     }
 }
 

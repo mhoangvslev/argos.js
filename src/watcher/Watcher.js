@@ -1,7 +1,5 @@
 'use strict'
 
-import { Database } from "../database/Database";
-
 export default class Watcher{
 
     /**

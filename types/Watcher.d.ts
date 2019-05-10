@@ -16,9 +16,9 @@ export declare abstract class Watcher {
      * @param {string} eventName the event name to watch
      * @param {string | number} fromBlock the start block, default is 0
      * @param {string | number} toBlock  the ending block, default is 'lastest'
-     * @returns {Promise<any[]>}
+     * @param {number} nbTasks how many batches required to process the log
      */
-    public abstract getEvents(eventName: string, fromBlock: string | number, toBlock: string): Promise<any[]>;
+    public getEvents(eventName: string, fromBlock: string | number, toBlock: string | number): Promise<any[]>;
 
     /**
      * Watch event with particular model
