@@ -19,6 +19,7 @@ export default class Neo4J extends Database {
         this._username = username;
         this._password = password;
         this._dbInstance = new Neode(this._connection, this._username, this._password, enterpriseMode, settings);
+        this._dbSession = this._dbInstance.session();
     }
 
     /**
@@ -37,22 +38,26 @@ export default class Neo4J extends Database {
      * Connect to the database
      */
     dbConnect() {
-        this._dbInstance.session();
+        return Promise.all([
+            this._dbSession = this._dbInstance.session()
+        ])
     }
 
     /**
      * Reconnect to the database
      */
-    dbReconnect() {
-        this.dbTerminate();
-        this.dbConnect();
+    async dbReconnect() {
+        await this.dbTerminate();
+        await this.dbConnect();
     }
 
     /**
      * Close connection to the database
      */
     dbTerminate() {
-        this._dbInstance.close();
+        return Promise.all([
+            this._dbSession.close()
+        ]);
     }
 
     /**
@@ -120,7 +125,7 @@ export default class Neo4J extends Database {
 
     /**
      * Tell the database to execute a query
-     * @param {string} queries a string query 
+     * @param {import('../../types').QueryData[]} queries a string query 
      * @returns {Promise<any>} the result of queries
      */
     async executeQueries(queries) {

@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import { Watcher } from "./Watcher";
-import { Database } from "./Database";
-import { DatabaseEnum, DatabaseConstructor } from ".";
+import { Database } from "../database/Database";
+import { DatabaseEnum, DatabaseConstructor } from "..";
 
 export const enum ProviderEnum {
     defaultProvider = 0,
@@ -47,7 +47,6 @@ export declare class EthereumWatcher extends Watcher {
      * Watch event with particular model
      * @param {string} eventName name of the event, usually 'Transfer'
      * @param {string} usingRel name of the relationship that we use in DB
-     * @param { Neode.SchemaObject } dbModel the model loaded via require()
      */
     public watchEvents(eventName: string, usingRel: string): Promise<void>;
 }

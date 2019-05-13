@@ -1,5 +1,5 @@
-import { argos } from "./index";
-import { Database } from "./Database";
+import { argos } from "../index";
+import { Database } from "../database/Database";
 
 export declare abstract class Watcher {
     provider: argos.ProviderType

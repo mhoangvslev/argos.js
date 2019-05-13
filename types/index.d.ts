@@ -2,11 +2,13 @@ import { ethers } from "ethers";
 import * as Neode from "neode";
 import { v1 as neo4j } from 'neo4j-driver';
 
-import { Neo4J } from './Neo4J';
-import { Database } from './Database';
-import { EthereumWatcher, ProviderEnum } from './EthereumWatcher';
-import { Watcher } from "./Watcher";
+import { Neo4J } from './database/Neo4J';
+import { Database } from './database/Database';
+import { EthereumWatcher, ProviderEnum } from './watcher/EthereumWatcher';
+import { Watcher } from "./watcher/Watcher";
 import { DatabaseFactory, WatcherFactory, DatabaseEnum, WatcherEnum } from './ArgosFactory';
+import { Visualiser, CentralityAlgorithmEnum, CommunityDetectionAlgoritmEnum } from './visualiser/Visualiser'
+import { NeoVis } from './visualiser/NeoVis'
 
 export declare namespace argos {
     type ProviderType = ethers.providers.BaseProvider;
@@ -40,8 +42,8 @@ export declare interface EventInfoDataStruct {
 
 export declare interface QueryData {
     query: string,
-    params: object
+    params?: object
 }
 
-export { DatabaseFactory, WatcherFactory, Database, Watcher, Neo4J, EthereumWatcher, ProviderEnum, DatabaseEnum, WatcherEnum }
+export { DatabaseFactory, WatcherFactory, Database, Watcher, Neo4J, EthereumWatcher, ProviderEnum, DatabaseEnum, WatcherEnum, NeoVis, Visualiser, CommunityDetectionAlgoritmEnum, CentralityAlgorithmEnum  }
 

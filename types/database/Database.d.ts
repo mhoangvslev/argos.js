@@ -1,5 +1,6 @@
-import { argos } from "./index";
+import { argos } from "../index";
 import * as Neode from "neode";
+import { QueryData } from "../index";
 
 export declare abstract class Database {
 
@@ -31,13 +32,13 @@ export declare abstract class Database {
 
     /**
      * Relate two given nodes
-     * @param {Neode.Node<any>} start start node
-     * @param {Neode.Node<any>} end end node
-     * @param {string} startToEnd relationship name from model
-     * @param {string} endToStart relationship name from model
+     * @param {argos.NodeType} start start node
+     * @param {argos.NodeType} end end node
+     * @param {string} relType relationship name from model
      * @param {object} relProps relationship properties
+     * @return {Promise<void | Neode.Relationship>} the ongoing process
      */
-    public abstract dbRelateNodes(start: Neode.Node<any>, end: Neode.Node<any>, startToEnd: string, endToStart: string, relProps: object): Promise<any>;
+    public abstract dbRelateNodes(start: argos.NodeType, end: argos.NodeType, relType: string, relProps: object): Promise<void | Neode.Relationship>;
 
     /**
      * Create a pair of nodes then relate them
@@ -47,4 +48,23 @@ export declare abstract class Database {
      * @param {object} relProps conditions to relate nodes
      */
     public abstract dbCreateNodes(startProps: object, endProps: object, relType: string, relProps: object): Promise<void>;
+
+    /**
+     * Delete all entry in the database
+     */
+    public abstract dbClearAll(): void;
+
+    /**
+     * Tell the database to execute a query
+     * @param {QueryData} query where parameters
+     * @returns {Promise<any>} the result of queries
+     */
+    public abstract executeQuery(query: QueryData): Promise<any>;
+
+    /**
+     * Tell the database to execute a query
+     * @param {string} queries a string query 
+     * @returns {Promise<any>} the result of queries
+     */
+    public abstract executeQueries(queries: QueryData[]): Promise<any>;
 }

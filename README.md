@@ -1,10 +1,12 @@
 # argos.js
+
 > An API that provides the ability to watch any smart-contract events, on any blockchain
 
 [![NPM Version][npm-image]][npm-url]
 [![Linux Build][travis-image]][travis-url]
 
 ## Context
+
 With the smart-contracts, we are able to make exchanges with complex arbitrary rules. By looking at the log entries data, we hope to extract meaningful/valuable information that provide great assistance in decision-making process.
 
 ## Install
@@ -18,16 +20,26 @@ npm install argosjs
 > You only need 2 elements: Database, Watcher. See the exemple [here]().
 
 ```javascript
-this._dbService = new Neo4J(config.neo4j.bolt, config.neo4j.username, config.neo4j.password);
-this._dbService.dbCreateModel(require('./database/models/Account.js'));
+const dbConstructor = {
+    type: DatabaseEnum.Neo4J,
+    config: config.database.neo4j,
+    model: require('../models/Account.js')
+}
 
-this._contractService = new EthereumWatcher(addr, abi, config.etherscan.api, this._dbService);
-const panoptes = new Argos(this._contractService);
-
-panoptes.initArgos();
+this._contractService = WatcherFactory.createWatcherInstance({
+    type: WatcherEnum.EthereumWatcher,
+    provider: ProviderEnum.InfuraProvider,
+    clearDB: clearDB,
+    address: addr,
+    abi: abi,
+    db: dbConstructor,
+    providerConf: config.providers
+});
+this._contractService.watchEvents("Transfer", "transfer");
 ```
 
 ## TO DO
+
 - 
 
 ## License

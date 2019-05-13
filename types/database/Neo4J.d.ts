@@ -1,6 +1,6 @@
 import { Database } from "./Database";
 import * as Neode from "neode";
-import { QueryData } from "./index";
+import { QueryData } from "../index";
 
 export declare class Neo4J extends Database {
 
@@ -56,11 +56,11 @@ export declare class Neo4J extends Database {
      * Relate two given nodes
      * @param {Neode.Node<any>} start start node
      * @param {Neode.Node<any>} end end node
-     * @param {string} startToEnd relationship name from model
-     * @param {string} endToStart relationship name from model
+     * @param {string} relType relationship name from model
      * @param {object} relProps relationship properties
+     * @return {Promise<void | Neode.Relationship>} the ongoing process
      */
-    public dbRelateNodes(start: Neode.Node<any>, end: Neode.Node<any>, startToEnd: string, endToStart: string, relProps: object): Promise<void | Neode.Relationship>;
+    public dbRelateNodes(start: Neode.Node<any>, end: Neode.Node<any>, relType: string, relProps: object): Promise<void | Neode.Relationship>;
 
     /**
      * Create a pair of nodes then relate them

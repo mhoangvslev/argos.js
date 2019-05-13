@@ -1,5 +1,5 @@
-import { Database } from "./Database";
-import { Watcher } from "./Watcher";
+import { Database } from "./database/Database";
+import { Watcher } from "./watcher/Watcher";
 import { DatabaseConstructor, WatcherConstructor } from "./index";
 
 export const enum DatabaseEnum {

@@ -1,11 +1,15 @@
 'use strict'
 
 import { ethers } from "ethers";
-import { Watcher } from "./Watcher";
 import * as Neode from "neode";
 import { v1 as neo4j } from 'neo4j-driver';
 import Web3 from "web3";
+import { ExportToCsv } from 'export-to-csv';
+
+import { Watcher } from "./Watcher";
 import DatabaseFactory from "../factory/DatabaseFactory";
+
+var linspace = require("linspace");
 
 export const ProviderEnum = {
     defaultProvider: 0,
@@ -84,14 +88,11 @@ export default class EthereumWatcher extends Watcher {
      * @param {function} callback the action to perform once the connection is interupted
      */
     refreshDB() {
-        if (this._dbService !== undefined)
-            this._dbService.dbTerminate();
-
-        this._dbService = DatabaseFactory.createDbInstance(this._dbType);
-        this._dbService.dbCreateModel(this._dbType.model);
-
-        if(this._clearDB) {
-            this._dbService.dbClearAll();
+        if (this._dbService !== undefined) {
+            this._dbService.dbReconnect();
+        } else {
+            this._dbService = DatabaseFactory.createDbInstance(this._dbType);
+            this._dbService.dbCreateModel(this._dbType.model);
         }
     }
 
@@ -100,22 +101,21 @@ export default class EthereumWatcher extends Watcher {
      * @param {string} eventName the event name to watch
      * @param {string | number} fromBlock the start block, default is 0
      * @param {string | number} toBlock  the ending block, default is 'lastest'
-     * @param {number} nbTasks how many batches required to process the log
+     * @returns {Promise<{logs: import("../../types").EventInfoDataStruct[]; steps: number;}>} the graph data and the number of steps required to process the log 
      */
     async getEvents(eventName, fromBlock = 0, toBlock = 'latest') {
 
         this.refreshDB();
 
-        const latestInDB = await this._dbService.executeQuery({
-            query: 'MATCH (n) WHERE EXISTS(n.blockheight) RETURN DISTINCT "node" as entity, n.blockheight AS blockheight UNION ALL MATCH ()-[r]-() WHERE EXISTS(r.blockheight) RETURN DISTINCT "relationship" AS entity, r.blockheight AS blockheight ORDER BY r.blockheight DESC LIMIT 1',
-            params: {
+        if (this._clearDB) {
+            await this._dbService.dbClearAll();
+        }
 
-            }
+        const latestInDB = await this._dbService.executeQuery({
+            query: 'MATCH (n) WHERE EXISTS(n.blockheight) RETURN DISTINCT "node" as entity, n.blockheight AS blockheight UNION ALL MATCH ()-[r]-() WHERE EXISTS(r.blockheight) RETURN DISTINCT "relationship" AS entity, r.blockheight AS blockheight ORDER BY r.blockheight DESC LIMIT 1'
         });
 
-        const fBlock = this._clearDB ? (fromBlock == 'earliest' ? 0 : fromBlock) : latestInDB[0].get("blockheight");
-        this._dbService.dbTerminate();
-
+        const fBlock = (this._clearDB || latestInDB === undefined || latestInDB.length == 0) ? (fromBlock == 'earliest' ? 0 : fromBlock) : latestInDB[0].get("blockheight");
 
         const latestBlock = await this._provider.getBlockNumber();
         const tBlock = toBlock == 'latest' ? latestBlock : toBlock;
@@ -131,7 +131,7 @@ export default class EthereumWatcher extends Watcher {
 
 
         /**
-         * 
+         * Get the smaller batch of events
          * @param {ethers.providers.BaseProvider} provider 
          * @param {string} address 
          * @param {number} fromBlock 
@@ -183,7 +183,7 @@ export default class EthereumWatcher extends Watcher {
 
                 return {
                     blockNumber: logEntry.blockNumber,
-                    date: jsDate,
+                    date: neoDate,
                     from: sender,
                     to: receiver,
                     value: displayValue
@@ -198,6 +198,8 @@ export default class EthereumWatcher extends Watcher {
         // Start serial tasks
         let start = fBlock;
         let end = tBlock;
+
+        let steps = 0;
 
         while (start != end) {
             let log = undefined;
@@ -218,11 +220,13 @@ export default class EthereumWatcher extends Watcher {
                         log = await getLogData(result);
                     })
                     .catch((reason) => { });
+                steps += 1;
             }
+            steps += 1;
         }
 
-        console.log(logs.length + " event(s) detected!");
-        return logs;
+        console.log(logs.length + " event(s) detected!", "required " + steps + " steps");
+        return { logs, steps };
     }
 
     /**
@@ -238,19 +242,61 @@ export default class EthereumWatcher extends Watcher {
         const startTime = new Date();
 
         await this.getEvents(eventName)
-            .then((events) => {
+            .then(async (result) => {
 
-                this.refreshDB();
-                events.forEach((event) => {
-                    this._dbService.dbCreateNodes(
-                        { address: event.from },
-                        { address: event.to },
-                        usingRel,
-                        { amount: event.value, blockheight: event.blockNumber, date: event.date }
-                    );
-                });
-                this._dbService.dbTerminate();
+                function generateCSV() {
+                    // CSV
+                    let records = [];
+                    let id = 0;
+                    result.logs.forEach((event) => {
+                        records.push({
+                            source: event.from,
+                            dest: event.to,
+                            type: 'Directed',
+                            id: id,
+                            amount: event.value,
+                            blockheight: event.blockNumber,
+                            datetime: event.date
+                        })
+                    })
 
+                    const csvExporter = new ExportToCsv({
+                        fieldSeparator: ',',
+                        quoteStrings: '"',
+                        decimalSeparator: '.',
+                        showLabels: true,
+                        showTitle: false,
+                        title: 'Accounts',
+                        useTextFile: false,
+                        useBom: true,
+                        headers: ['Source', 'Target', 'Type', 'id', 'amount', 'blockheight', 'date']
+                    });
+                    csvExporter.generateCsv(records);
+                }
+
+
+                /**
+                 * Persist graph data to DB
+                 * @param {Database} dbService the database service
+                 * @param {import("../../types").EventInfoDataStruct[]} events 
+                 */
+                async function persist(dbService, events) {
+
+                    let queries = [];
+
+                    events.forEach((event) => {
+                        queries.push({
+                            query: "MERGE (src:Account {address: {sender}})\n MERGE (tgt:Account {address: {receiver}})\n MERGE (src)-[r:TRANSFER]->(tgt) ON CREATE SET r.amount = toFloat({amount}), r.blockheight = toInteger({blockheight}), r.date = {date}",
+                            params: {sender: event.from, receiver: event.to, amount: event.value, blockheight: event.blockNumber, date: event.date}
+                        });
+                    });
+
+                    //console.log(queries);
+                    await dbService.executeQueries(queries);
+                }
+
+    
+                await persist(this._dbService, result.logs);
                 console.log("Database updated!");
 
             })
