@@ -107,6 +107,10 @@ export default class EthereumWatcher extends Watcher {
 
         this.refreshDB();
 
+        function toInt(number) {
+            return typeof number == "string" ? parseInt(number) : Math.round(number);
+        }
+
         if (this._clearDB) {
             await this._dbService.dbClearAll();
         }
@@ -115,10 +119,12 @@ export default class EthereumWatcher extends Watcher {
             query: 'MATCH (n) WHERE EXISTS(n.blockheight) RETURN DISTINCT "node" as entity, n.blockheight AS blockheight UNION ALL MATCH ()-[r]-() WHERE EXISTS(r.blockheight) RETURN DISTINCT "relationship" AS entity, r.blockheight AS blockheight ORDER BY r.blockheight DESC LIMIT 1'
         });
 
-        const fBlock = (this._clearDB || latestInDB === undefined || latestInDB.length == 0) ? (fromBlock == 'earliest' ? 0 : fromBlock) : latestInDB[0].get("blockheight");
+        const fBlock = toInt(
+            (this._clearDB || latestInDB === undefined || latestInDB.length == 0) ? (fromBlock == 'earliest' ? 0 : fromBlock) : latestInDB[0].get("blockheight")
+        );
 
         const latestBlock = await this._provider.getBlockNumber();
-        const tBlock = toBlock == 'latest' ? latestBlock : toBlock;
+        const tBlock = toInt(toBlock == 'latest' ? latestBlock : toBlock);
 
         const provider = this._provider;
         const address = this._contractAddr;
@@ -287,7 +293,7 @@ export default class EthereumWatcher extends Watcher {
                     events.forEach((event) => {
                         queries.push({
                             query: "MERGE (src:Account {address: {sender}})\n MERGE (tgt:Account {address: {receiver}})\n MERGE (src)-[r:TRANSFER]->(tgt) ON CREATE SET r.amount = toFloat({amount}), r.blockheight = toInteger({blockheight}), r.date = {date}",
-                            params: {sender: event.from, receiver: event.to, amount: event.value, blockheight: event.blockNumber, date: event.date}
+                            params: { sender: event.from, receiver: event.to, amount: event.value, blockheight: event.blockNumber, date: event.date }
                         });
                     });
 
@@ -295,7 +301,7 @@ export default class EthereumWatcher extends Watcher {
                     await dbService.executeQueries(queries);
                 }
 
-    
+
                 await persist(this._dbService, result.logs);
                 console.log("Database updated!");
 

@@ -119,6 +119,8 @@ export default class Neo4J extends Database {
      * @returns {Promise<any>} the result of queries
      */
     async executeQuery(queryData) {
+        await this.dbReconnect();
+        console.log(queryData)
         const summary = await this._dbInstance.cypher(queryData.query, queryData.params);
         return summary.records;
     }
@@ -129,6 +131,7 @@ export default class Neo4J extends Database {
      * @returns {Promise<any>} the result of queries
      */
     async executeQueries(queries) {
+        await this.dbReconnect();
         const summary = await this._dbInstance.batch(queries);
         return summary.records;
     }

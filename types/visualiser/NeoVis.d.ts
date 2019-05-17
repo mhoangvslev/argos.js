@@ -1,27 +1,105 @@
 import { Visualiser } from './Visualiser';
-import { DatabaseConstructor } from '..';
+import { DatabaseConstructor, QueryData, argos } from '..';
 import { CentralityAlgorithmEnum, CommunityDetectionAlgoritmEnum } from './Visualiser'
+import { Integer, Node } from 'neo4j-driver/types/v1';
 
 interface BaseGraphAlgorithmParam {
     label?: string;
     relationship?: string;
     weightProperty?: string;
-    defaultValue?: number;
     write?: boolean;
     writeProperty?: string;
-    iterations?: number;
-    graph?: 'heavy' | 'cypher';
-    direction?: 'in' | 'out'
+
+    defaultValue?: number;
+    direction?: 'incoming' | 'outgoing' | 'both';
 }
 
 export interface CommunityDetectionParam extends BaseGraphAlgorithmParam {
     threshold?: number;
     partitionProperty?: string;
+    clusteringCoefficientProperty?: string;
+
+    iterations?: number;
+    graph?: 'heavy' | 'cypher';
 }
 
-export declare interface CentralityAlgorithmParam extends BaseGraphAlgorithmParam{
+export interface CentralityAlgorithmParam extends BaseGraphAlgorithmParam {
     dampingFactor?: number;
     stats?: boolean;
+
+    iterations?: number;
+    graph?: 'heavy' | 'cypher';
+}
+
+export interface MinimumWeightSpanningTreeAlgorithmParam {
+    label?: string;
+    relationshipType?: string;
+    weightProperty?: string;
+    startNodeId?: number;
+    write?: boolean;
+    writeProperty?: string;
+}
+
+export interface ShortestPathAlgorithmParam {
+    startNode?: Node;
+    endNode?: Node;
+    weightProperty?: string;
+    defaultValue?: number;
+    write?: boolean;
+    writeProperty?: string;
+    nodeQuery?: QueryData | string;
+    relationshipQuery?: QueryData | string;
+    direction?: 'incoming' | 'outgoing' | 'both';
+}
+
+export interface AllShortestPathAlgorithmParam {
+    nodeQuery?: string;
+    relationshipQuery?: string;
+    defaultValue?: number;
+}
+
+export interface SingleSourceShortestPathAlgorithmParam {
+    startNode?: Node;
+    delta?: number;
+    weightProperty?: string;
+    defaultValue?: number;
+    write?: boolean;
+    writeProperty?: string;
+    nodeQuery?: QueryData | string;
+    relationshipQuery?: QueryData | string;
+    direction?: 'incoming' | 'outgoing' | 'both';
+}
+
+export interface AStarAlgorithmParam {
+    startNode?: Node;
+    endNode?: Node;
+    weightProprety?: string;
+    propertyKeyLat: string;
+    propertyKeyLon: string;
+    nodeQuery?: QueryData | string;
+    relationshipQuery?: QueryData | string;
+    defaultValue?: number;
+    direction?: 'incoming' | 'outgoing' | 'both';
+}
+
+export interface KShortestPathsAlgorithmParam extends ShortestPathAlgorithmParam {
+    maxDepth?: number;
+    writePropertyPrefix?: string;
+}
+
+export interface RandomWalkAlgorithmParam {
+    start?: object;
+    steps?: number;
+    walks?: number;
+    graph?: 'heavy' | 'cypher';
+    k: number;
+    nodeQuery: string;
+    relationshipQuery: string;
+    direction?: 'incoming' | 'outgoing' | 'both';
+    mode?: 'random' | 'node2vec';
+    inOut?: number;
+    return: number;
+    path: boolean;
 }
 
 export declare class NeoVis extends Visualiser {
@@ -34,6 +112,13 @@ export declare class NeoVis extends Visualiser {
      * @param {object} relProps NeoVis relationship properties
      */
     constructor(dbConfig: DatabaseConstructor, containerId: string, nodeProps: object, relProps: object);
+
+    /**
+     * Find the shortest path or evaluate the availability / quality of nodes
+     * See <a href="https://neo4j.com/docs/graph-algorithms/current/algorithms/pathfinding/">Path finding algorithms </a> for more details
+     * @param  { argos.PathFindingAlgorithmParam } args the remaining parameters
+     */
+    public pathfinding(args: argos.PathFindingAlgorithmParam): void;
 
     /**
      * Determine nodes' importance using a selected algorithm

@@ -6,17 +6,30 @@ export const enum CommunityDetectionAlgoritmEnum {
     ConnectedComponents = "Connected Components",
     StronglyConnectedComponents = "Strongly Connected Components",
     ClusteringCoefficient = "Clustering Coefficient",
-    BalancedTriads = "Balanced Triads"
+    BalancedTriads = "Balanced Triads",
+    None = "none"
 }
 
 export const enum CentralityAlgorithmEnum {
     PageRank = "PageRank",
-    ArticleRank = "ArticleRak",
+    ArticleRank = "ArticleRank",
     BetweenessCentrality = "Betweeness",
     ClosenessCentrality = "Closeness",
     HarmonicCentrality = "Harmonic",
     EigenvectorCentrality = "Eigenvector",
-    DegreeCentrality = "Degree"
+    DegreeCentrality = "Degree",
+    None = "none"
+}
+
+export const enum PathFindingAlgorithmEnum {
+    MinimumWeightSpanningTree = "Minimum Weight Spanning Tree",
+    ShortestPath = "Shortest Path",
+    SingleSourceShortestPath = "Single Source Shortest Path",
+    AllPairsShortestPath = "All Pairs Shortest Path",
+    AStar = "A*",
+    KShortestPath = "Yen's K-shortest paths",
+    RandomWalk = "Random Walk",
+    None = "none"
 }
 
 export declare abstract class Visualiser {
