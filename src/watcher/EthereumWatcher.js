@@ -9,8 +9,6 @@ import { ExportToCsv } from 'export-to-csv';
 import { Watcher } from "./Watcher";
 import DatabaseFactory from "../factory/DatabaseFactory";
 
-var linspace = require("linspace");
-
 export const ProviderEnum = {
     defaultProvider: 0,
     EtherscanProvider: 1,
@@ -161,7 +159,6 @@ export default class EthereumWatcher extends Watcher {
          * @returns { import("../../types").EventInfoDataStruct } the required information to build a db node
          */
         async function getLogData(log) {
-
             if (log.length == 0) return [];
 
             /**

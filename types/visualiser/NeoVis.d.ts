@@ -142,6 +142,13 @@ export declare class NeoVis extends Visualiser {
     public refresh(): void;
 
     /**
+     * Make neojs render the selected nodes returned by the cypher query
+     * @param {QueryData} querydata 
+     * @param {number} displayResult whether to display the outcome
+     */
+    renderWithCypher(querydata: QueryData, displayResult: number): void;
+
+    /**
      * Remove all styling elements by removing calculated properties on db nodes
      */
     public clear(): void;

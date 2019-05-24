@@ -33,8 +33,10 @@ export default class NeoVis extends Visualiser {
             labels: nodeProps,
             relationships: relProps,
             arrows: true,
+            hierarchical: true,
+            hierarchical_sort_method: "hubsize",
 
-            initial_cypher: "MATCH (n)-[r:TRANSFER]->(m) RETURN n,r,m"
+            initial_cypher: "MATCH (n)-[r:TRANSFER]->(m) RETURN n,r,m LIMIT 25"
         }
 
         this._renderer = new neoVis.default(this._config);
@@ -48,7 +50,15 @@ export default class NeoVis extends Visualiser {
         this._selectedNodes = [];
 
         this._renderer.registerOnEvent('selectNode', (nodes) => {
-            console.log(nodes);
+            for (let node of nodes) {
+                console.log(node.get("n").properties.address);
+            }
+        });
+
+        this._renderer.registerOnEvent('selectEdge', (edges) => {
+            for (let edge of edges) {
+                console.log(edge.get("r").properties);
+            }
         });
 
         this.refresh();
@@ -479,8 +489,9 @@ export default class NeoVis extends Visualiser {
     /**
      * Make neojs render the selected nodes returned by the cypher query
      * @param {import('../../types').QueryData} querydata 
+     * @param {number} queryLimit whether to display the outcome
      */
-    renderWithCypher(querydata) {
+    renderWithCypher(querydata, queryLimit = 25) {
         let cypher = querydata.query;
 
         if (querydata.params) {
@@ -497,7 +508,8 @@ export default class NeoVis extends Visualiser {
             }
         }
 
-        cypher = [cypher, this._config.initial_cypher].join("\n");
+        const limitString = queryLimit == 0 ? '' : 'LIMIT ' + queryLimit;
+        cypher = [cypher, this._config.initial_cypher.replace("LIMIT 25", limitString)].join("\n");
         console.log(cypher);
         this._renderer.renderWithCypher(cypher);
     }
@@ -507,9 +519,7 @@ export default class NeoVis extends Visualiser {
      */
     async clear() {
         const cypher = "MATCH (n) REMOVE " + this._extraProps.map(prop => "n." + prop).join(',') + "\nWITH n";
-        this.renderWithCypher({
-            query: cypher
-        })
+        this.renderWithCypher({ query: cypher })
     }
 }
 
