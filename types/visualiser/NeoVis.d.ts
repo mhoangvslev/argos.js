@@ -108,10 +108,9 @@ export declare class NeoVis extends Visualiser {
      * Create a NeoVis visualiser instance from neo4j db config
      * @param {DatabaseConstructor} dbConfig the loaded db config file
      * @param {string} containerId the html element that holds the visualiser
-     * @param {object} nodeProps NeoVis properties for labels
-     * @param {object} relProps NeoVis relationship properties
+     * @param {object} neovis NeoVis properties 
      */
-    constructor(dbConfig: DatabaseConstructor, containerId: string, nodeProps: object, relProps: object);
+    constructor(dbConfig: DatabaseConstructor, containerId: string, neovis: object);
 
     /**
      * Find the shortest path or evaluate the availability / quality of nodes
@@ -146,10 +145,53 @@ export declare class NeoVis extends Visualiser {
      * @param {QueryData} querydata 
      * @param {number} displayResult whether to display the outcome
      */
-    renderWithCypher(querydata: QueryData, displayResult: number): void;
+    public renderWithCypher(querydata: QueryData, displayResult: number): void;
+
+    /**
+     * Make neojs render the selected nodes returned by the cypher query
+     * @param {QueryData} querydata 
+     * @param {number} queryLimit whether to display the outcome
+     */
+    public displayWithCypher(querydata: QueryData, queryLimit: number): void;
+
+    /**
+     * Display relationships from certain node AND/OR to certain node
+     * @param {string} nodeAddress address to filter
+     * @param {boolean} from display relationships from that node
+     * @param {boolean} to display relationships to that node
+     */
+    public filterNodesByAddress(nodeAddress: string, from?: boolean, to?: boolean): void;
+
+    /**
+     * Filter display by dates
+     * @param {string} nodeAddress per address
+     * @param {Date} fromDate 
+     * @param {Date} toDate 
+     */
+    public filterNodesByDates(fromDate: Date, toDate: Date, nodeAddress?: string): void;
+
+    /**
+     * See community's evolution over time
+     * @param {number} fromBlock fromBlock
+     * @param {number} toBlock toBlock
+     * @param {number} community community id (depends on graph algorithm)
+     */
+    filterCommunityByDateRange(fromBlock: number, toBlock: number, community?: number): void;
+
+    /**
+     * Focus on a node of this specific address
+     * @param {string} nodeAddress 
+     */
+    public focusOnNode(nodeAddress: string): void;
 
     /**
      * Remove all styling elements by removing calculated properties on db nodes
      */
     public clear(): void;
+
+    /**
+     * Change queryLimit
+     * @param {number} newLimit 
+     */
+    setQueryLimit(newLimit: number): void;
 }

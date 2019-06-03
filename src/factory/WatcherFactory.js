@@ -18,7 +18,7 @@ export default class WatcherFactory {
 
         switch (args.type) {
             case WatcherEnum.EthereumWatcher:
-                return new EthereumWatcher(args.address, args.abi, args.provider, args.db, args.providerConf, args.clearDB);
+                return new EthereumWatcher(args.address, args.abi, args.provider, args.db, args.providerConf, args.clearDB, args.exportDir);
             default:
                 return undefined;
         }

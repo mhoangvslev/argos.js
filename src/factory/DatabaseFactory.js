@@ -16,7 +16,9 @@ export default class DatabaseFactory{
     static createDbInstance(args){
         switch (args.type){
             case DatabaseEnum.Neo4J:
-                return new Neo4J(args.config.bolt, args.config.username, args.config.password);
+                const instance = Neo4J.createInstance(args.config.bolt, args.config.username, args.config.password, args.config.enterpriseMode, args.config.driverConf);
+                instance.dbCreateModel(args.model);
+                return instance;
             default:
                 return undefined;
         }

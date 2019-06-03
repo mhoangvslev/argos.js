@@ -23,8 +23,9 @@ export declare abstract class Watcher {
     /**
      * Watch event with particular model
      * @param {string} eventName name of the event, usually 'Transfer'
-     * @param {string} usingRel name of the relationship that we use in DB
-     * @param { Neode.SchemaObject } dbModel the model loaded via require()
+     * @param {Neode.SchemaObject} dbModel the model loaded via require()
+     * @param {number} fromDate timestamp
+     * @param {number} toDate timestamp
      */
-    public watchEvents(eventName: string, usingRel: string): Promise<void>;
+    public watchEvents(eventName: string, fromDate: number, toDate: number): Promise<void>;
 }

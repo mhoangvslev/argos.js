@@ -13,10 +13,9 @@ export default class NeoVis extends Visualiser {
      * Create a NeoVis visualiser instance from neo4j db config
      * @param {import('../../types').DatabaseConstructor} dbConfig the loaded db config file
      * @param {string} containerId the html element that holds the visualiser
-     * @param {object} nodeProps NeoVis properties for labels
-     * @param {object} relProps NeoVis relationship properties
+     * @param {object} neovis NeoVis properties 
      */
-    constructor(dbConfig, containerId, nodeProps, relProps) {
+    constructor(dbConfig, containerId, neovis) {
         super();
 
         if (dbConfig.type != DatabaseEnum.Neo4J) {
@@ -30,20 +29,37 @@ export default class NeoVis extends Visualiser {
             server_user: dbConfig.config.username,
             server_password: dbConfig.config.password,
 
-            labels: nodeProps,
-            relationships: relProps,
-            arrows: true,
-            hierarchical: true,
+            labels: {
+                "Account": {
+                    "size": neovis.node.sizeProp,
+                    "community": neovis.node.communityProp
+                }
+            },
+            relationships: {
+                "TRANSFER": {
+                    "thickness": neovis.relationship.thicknessProp,
+                    "caption": neovis.relationship.captionProp
+                }
+            },
+
+            arrows: neovis.arrows,
+            hierarchical: neovis.layout.hierarchical,
             hierarchical_sort_method: "hubsize",
 
-            initial_cypher: "MATCH (n)-[r:TRANSFER]->(m) RETURN n,r,m LIMIT 25"
+            initial_cypher: "MATCH (n)-[r:TRANSFER]->(m)\n" +
+                /*"WITH DISTINCT n\n" +
+                "ORDER BY n.size DESC\n" +
+                "WITH n.community as community, collect(n) as nds\n" +
+                "WITH community, head(nds) as pole\n" +
+                "MATCH (pole)\n" +*/
+                "RETURN * LIMIT 25"
         }
 
         this._renderer = new neoVis.default(this._config);
-        this._centrality = nodeProps[Object.keys(nodeProps)].size;
+        this._centrality = neovis.node.sizeProp;
 
-        this._community = nodeProps[Object.keys(nodeProps)].community;
-        this._weight = relProps[Object.keys(relProps)].thickness;
+        this._community = neovis.node.communityProp;
+        this._weight = neovis.relationship.thicknessProp;
         this._extraProps = [this._community, this._centrality, this._weight];
         //this._dbService = DatabaseFactory.createDbInstance(dbConfig);
 
@@ -83,12 +99,12 @@ export default class NeoVis extends Visualiser {
                 return;
 
             case PathFindingAlgorithmEnum.MinimumWeightSpanningTree:
-                args.param.label = args.param.label ? args.param.label : null;
-                args.param.relationshipType = args.param.relationshipType ? args.param.relationshipType : null;
-                args.param.weightProperty = args.param.weightProperty ? args.param.weightProperty : null;
+                args.param.label = args.param.label ? args.param.label : 'Account';
+                args.param.relationshipType = args.param.relationshipType ? args.param.relationshipType : 'TRANSFER';
+                args.param.weightProperty = args.param.weightProperty ? args.param.weightProperty : 'pth_weight';
                 args.param.startNodeid = args.param.startNodeid ? args.param.startNodeid : null;
                 args.param.write = args.param.write ? args.param.write : true;
-                args.param.writeProperty = args.param.writeProperty ? args.param.writeProperty : null;
+                args.param.writeProperty = args.param.writeProperty ? args.param.writeProperty : '';
 
                 query = {
                     query: "CALL algo.spanningTree({label}, {relationshipType}, {weightProperty}, {startNodeId}, {writeProperty: {writeProperty}})\nYIELD loadMillis, computeMillis, writeMillis, effectiveNodeCount",
@@ -472,7 +488,7 @@ export default class NeoVis extends Visualiser {
         }
 
         console.log(query);
-        this.renderWithCypher(query);
+        this.renderWithCypher(query, this.queryLimit);
     }
 
     /**
@@ -508,18 +524,144 @@ export default class NeoVis extends Visualiser {
             }
         }
 
-        const limitString = queryLimit == 0 ? '' : 'LIMIT ' + queryLimit;
+        const limitString = queryLimit == 0 ? '' : ' LIMIT ' + queryLimit;
         cypher = [cypher, this._config.initial_cypher.replace("LIMIT 25", limitString)].join("\n");
         console.log(cypher);
         this._renderer.renderWithCypher(cypher);
     }
 
     /**
+     * Make neojs render the selected nodes returned by the cypher query
+     * @param {import('../../types').QueryData} querydata 
+     * @param {number} queryLimit whether to display the outcome
+     */
+    displayWithCypher(querydata, queryLimit = 0) {
+        if (!querydata.query.includes("MATCH")) {
+            return;
+        }
+
+        const limitString = queryLimit == 0 ? '' : ' LIMIT ' + queryLimit;
+        let cypher = querydata.query;
+        if (querydata.params) {
+            for (let param of Object.keys(querydata.params)) {
+                let arg = querydata.params[param];
+                switch (typeof arg) {
+                    case "string":
+                        arg = "'" + arg + "'";
+                        break;
+                    default:
+                        break;
+                }
+                cypher = cypher.replace("{" + param + "}", arg);
+            }
+        }
+
+        cypher += limitString;
+
+        //console.log(cypher);
+
+        this._renderer.renderWithCypher(cypher, queryLimit);
+    }
+
+    /**
      * Remove all styling elements by removing calculated properties on db nodes
      */
     async clear() {
-        const cypher = "MATCH (n) REMOVE " + this._extraProps.map(prop => "n." + prop).join(',') + "\nWITH n";
-        this.renderWithCypher({ query: cypher })
+        const cypher = "MATCH (n:Account) REMOVE " + this._extraProps.map(prop => "n." + prop).join(', ');
+        this.displayWithCypher({ query: cypher })
+    }
+
+    /**
+     * Display relationships from certain node AND/OR to certain node
+     * @param {string} nodeAddress 
+     * @param {boolean} from 
+     * @param {boolean} to
+     */
+    filterNodesByAddress(nodeAddress, from = false, to = false) {
+        if (!from && !to) {
+            this.focusOnNode(nodeAddress);
+        }
+
+        else {
+            let cypher = "MATCH (n:Account)-[r:TRANSFER]->(m:Account) WHERE false";
+            if (from) {
+                cypher += " OR n.address = '" + nodeAddress + "'"
+            }
+
+            if (to) {
+                cypher += " OR m.address = '" + nodeAddress + "'";
+            }
+
+            cypher += " RETURN n,r,m";
+
+            console.log(cypher);
+            this.displayWithCypher({ query: cypher }, this.queryLimit);
+        }
+    }
+
+    /**
+     * Filter display by dates
+     * @param {string} nodeAddress per address
+     * @param {Date} fromDate 
+     * @param {Date} toDate 
+     */
+    filterNodesByDates(fromDate, toDate, nodeAddress = undefined) {
+
+        if (fromDate.getTime() > toDate.getTime()) {
+            throw ("fromDate > toDate")
+        }
+
+        const fDate = neo4j.types.DateTime.fromStandardDate(fromDate);
+        const tDate = neo4j.types.DateTime.fromStandardDate(toDate);
+
+        let cypher = "MATCH (n)-[r:TRANSFER]->(m) WHERE r.date >= '{fromDate}' AND r.date <= '{toDate}'";
+
+        if (nodeAddress) {
+            cypher += " AND (n.address = '" + nodeAddress + "'" + " OR m.address = '" + nodeAddress + "')";
+        }
+
+        cypher += " RETURN n,r,m";
+
+        this.displayWithCypher({ query: cypher, params: { fromDate: fDate, toDate: tDate } }, this.queryLimit);
+    }
+
+    /**
+     * See community's evolution over time
+     * @param {number} fromBlock fromBlock
+     * @param {number} toBlock toBlock
+     * @param {number} community community id (depends on graph algorithm)
+     */
+    filterCommunityByDateRange(fromBlock, toBlock, community = undefined) {
+        let cypher = 'MATCH (n)-[r]->(m) WHERE datetime({epochMillis: {fromBlock}}) <= datetime(r.date) <= datetime({epochMillis: {toBlock}})';
+        if (community) {
+            cypher += ' AND (n.community = ' + community + ' OR m.community = ' + community + ') ';
+        }
+
+        cypher += ' RETURN n,r,m';
+
+        this.displayWithCypher({
+            query: cypher,
+            params: { fromBlock: fromBlock, toBlock: toBlock }
+        }, this.queryLimit);
+    }
+
+    /**
+     * Focus on a node of this specific address
+     * @param {string} nodeAddress 
+     */
+    focusOnNode(nodeAddress) {
+        this._renderer.focusOnNode('address', nodeAddress, {
+            scale: 1.0,
+        });
+    }
+
+    /**
+     * Change queryLimit
+     * @param {number} newLimit 
+     */
+    setQueryLimit(newLimit) {
+        console.log("NeoVis module: set query limit to " + newLimit);
+        this.queryLimit = newLimit;
     }
 }
 

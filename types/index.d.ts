@@ -35,10 +35,11 @@ export declare interface WatcherConstructor {
     type: WatcherEnum
     provider: ProviderEnum,
     clearDB: boolean,
-    address: string
-    db: DatabaseConstructor
-    abi: string
-    providerConf: object
+    address: string,
+    db: DatabaseConstructor,
+    abi: string,
+    providerConf: object,
+    exportDir: string,
 }
 
 export declare interface EventInfoDataStruct {

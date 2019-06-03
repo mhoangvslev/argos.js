@@ -19,6 +19,9 @@ export default class Neo4J extends Database {
         this._username = username;
         this._password = password;
         this._dbInstance = new Neode(this._connection, this._username, this._password, enterpriseMode, settings);
+        this._dbInstance.with({
+            'Account': settings.model
+        });
         this._dbSession = this._dbInstance.session();
     }
 
@@ -74,8 +77,8 @@ export default class Neo4J extends Database {
     /**
      * Delete all entry in the database
      */
-    dbClearAll() {
-        this._dbInstance.deleteAll('Account').then(() => {
+    async dbClearAll() {
+        await this._dbInstance.deleteAll('Account').then(() => {
             console.log("Reset database");
         });
     }
@@ -135,6 +138,7 @@ export default class Neo4J extends Database {
         const summary = await this._dbInstance.batch(queries);
         return summary.records;
     }
+
 }
 
 export { Neo4J }

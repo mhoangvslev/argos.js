@@ -15,6 +15,14 @@ With the smart-contracts, we are able to make exchanges with complex arbitrary r
 npm install argosjs
 ```
 
+You should also configurate your Neo4J database. In neo4j.conf, add:
+```
+# APOC
+apoc.export.file.enabled=true
+apoc.import.file.enabled=true
+apoc.import.file.use_neo4j_config=false
+```
+
 ## Usage
 
 > You only need 2 elements: Database, Watcher. See the exemple [here]().
