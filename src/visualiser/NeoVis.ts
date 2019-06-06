@@ -1,50 +1,45 @@
-'use strict'
+import { v1 as neo4j } from "neo4j-driver";
+import { ArgumentsReader } from "typedoc/dist/lib/utils/options/readers";
+import { Visualiser } from "./Visualiser";
 
-import { PathFindingAlgorithmEnum, CentralityAlgorithmEnum, CommunityDetectionAlgoritmEnum, Visualiser } from './Visualiser';
-import { DatabaseFactory, DatabaseEnum } from '../factory/DatabaseFactory';
-import { ArgumentsReader } from 'typedoc/dist/lib/utils/options/readers';
-import { v1 as neo4j } from 'neo4j-driver';
+import { Record } from "neo4j-driver/types/v1";
+import { NeoVis as NeoViz, NeoVisConfig } from "neovis.js";
 
-const neoVis = require("../../node_modules/neovis.js/dist/neovis.js");
+import { CentralityAlgorithmEnum, CentralityAlgorithmParam, CommunityDetectionAlgoritmEnum, CommunityDetectionParam, Neo4JConstructor, PathFindingAlgorithmEnum, PathFindingAlgorithmParam, QueryData } from "..";
 
 export default class NeoVis extends Visualiser {
 
+    public _renderer: NeoViz;
+    public _extraProps: string[];
+    public _queryLimit: number = 25;
+    public _config: NeoVisConfig;
+
     /**
      * Create a NeoVis visualiser instance from neo4j db config
-     * @param {import('../../types').DatabaseConstructor} dbConfig the loaded db config file
+     * @param {Neo4JConstructor} dbConfig the loaded db config file
      * @param {string} containerId the html element that holds the visualiser
-     * @param {object} neovis NeoVis properties 
+     * @param {NeovisConfig} neovis NeoVis properties
      */
-    constructor(dbConfig, containerId, neovis) {
+    constructor(dbConfig: Neo4JConstructor, containerId: string, neovis: NeoVisConfig) {
         super();
-
-        if (dbConfig.type != DatabaseEnum.Neo4J) {
-            console.error("Only accept Neo4J database");
-        }
 
         this._config = {
             container_id: containerId,
 
-            server_url: dbConfig.config.bolt,
-            server_user: dbConfig.config.username,
-            server_password: dbConfig.config.password,
+            server_url: dbConfig.bolt,
+            server_user: dbConfig.username,
+            server_password: dbConfig.password,
 
-            labels: {
-                "Account": {
-                    "size": neovis.node.sizeProp,
-                    "community": neovis.node.communityProp
+            nodes: neovis.nodes,
+            relationships: neovis.relationships,
+
+            visOptions: {
+                edges: {
+                    arrows: {
+                        to: true
+                    }
                 }
             },
-            relationships: {
-                "TRANSFER": {
-                    "thickness": neovis.relationship.thicknessProp,
-                    "caption": neovis.relationship.captionProp
-                }
-            },
-
-            arrows: neovis.arrows,
-            hierarchical: neovis.layout.hierarchical,
-            hierarchical_sort_method: "hubsize",
 
             initial_cypher: "MATCH (n)-[r:TRANSFER]->(m)\n" +
                 /*"WITH DISTINCT n\n" +
@@ -53,26 +48,20 @@ export default class NeoVis extends Visualiser {
                 "WITH community, head(nds) as pole\n" +
                 "MATCH (pole)\n" +*/
                 "RETURN * LIMIT 25"
-        }
+        };
 
-        this._renderer = new neoVis.default(this._config);
-        this._centrality = neovis.node.sizeProp;
+        this._renderer = new NeoViz(this._config);
+        this._extraProps = [];
+        // this._dbService = DatabaseFactory.createDbInstance(dbConfig);
 
-        this._community = neovis.node.communityProp;
-        this._weight = neovis.relationship.thicknessProp;
-        this._extraProps = [this._community, this._centrality, this._weight];
-        //this._dbService = DatabaseFactory.createDbInstance(dbConfig);
-
-        this._selectedNodes = [];
-
-        this._renderer.registerOnEvent('selectNode', (nodes) => {
-            for (let node of nodes) {
+        this._renderer.registerOnEvent("selectNode", (nodes: Record[]) => {
+            for (const node of nodes) {
                 console.log(node.get("n").properties.address);
             }
         });
 
-        this._renderer.registerOnEvent('selectEdge', (edges) => {
-            for (let edge of edges) {
+        this._renderer.registerOnEvent("selectEdge", (edges: Record[]) => {
+            for (const edge of edges) {
                 console.log(edge.get("r").properties);
             }
         });
@@ -83,136 +72,165 @@ export default class NeoVis extends Visualiser {
     /**
      * Find the shortest path or evaluate the availability / quality of nodes
      * See <a href="">Path finding algorithms </a> for more details
-     * @param  { import('../../types/index').argos.PathFindingAlgorithmParam } args the remaining parameters
+     * @param  { PathFindingAlgorithmParam } args the remaining parameters
      */
-    pathfinding(args) {
+    public pathfinding(args: PathFindingAlgorithmParam) {
         if (ArgumentsReader === undefined) {
             console.log("No Pathfinding Algorithm selected!");
             return;
         }
 
-        let query = undefined;
-
+        let query: QueryData;
 
         switch (args.algo) {
             case PathFindingAlgorithmEnum.None: default:
                 return;
 
             case PathFindingAlgorithmEnum.MinimumWeightSpanningTree:
-                args.param.label = args.param.label ? args.param.label : 'Account';
-                args.param.relationshipType = args.param.relationshipType ? args.param.relationshipType : 'TRANSFER';
-                args.param.weightProperty = args.param.weightProperty ? args.param.weightProperty : 'pth_weight';
-                args.param.startNodeid = args.param.startNodeid ? args.param.startNodeid : null;
-                args.param.write = args.param.write ? args.param.write : true;
-                args.param.writeProperty = args.param.writeProperty ? args.param.writeProperty : '';
+                args.param.label = args.param.label || Object.keys(this._config.nodes)[0];
+                args.param.relationshipType = args.param.relationshipType || Object.keys(this._config.relationships)[0];
+                args.param.weightProperty = args.param.weightProperty || this._config.relationships[args.param.relationshipType].thickness || "pth_mst_weight";
+                args.param.startNodeId = args.param.startNodeId || null;
+                args.param.write = args.param.write || true;
+                args.param.writeProperty = args.param.writeProperty || this._config.nodes[args.param.label].community;
 
                 query = {
                     query: "CALL algo.spanningTree({label}, {relationshipType}, {weightProperty}, {startNodeId}, {writeProperty: {writeProperty}})\nYIELD loadMillis, computeMillis, writeMillis, effectiveNodeCount",
-                    param: args.param
-                }
+                    params: {
+                        label: args.param.label,
+                        relationshipType: args.param.relationshipType,
+                        weightProperty: args.param.weightProperty,
+                        startNodeId: args.param.startNodeId,
+                    }
+                };
                 break;
 
             case PathFindingAlgorithmEnum.ShortestPath:
-                args.param.startNode = args.param.startNode ? args.param.startNode : null;
-                args.param.endNode = args.param.endNode ? args.param.endNode : null;
-                args.param.weightProperty = args.param.weightProperty ? args.param.weightProperty : null;
-                args.param.defaultValue = args.param.defaultValue ? args.param.defaultValue : null;
-                args.param.write = args.param.write ? args.param.write : true;
-                args.param.writeProperty = args.param.writeProperty ? args.param.writeProperty : 'sssp';
-                args.param.nodeQuery = args.param.nodeQuery ? args.param.nodeQuery : null;
-                args.param.relationshipQuery = args.param.relationshipQuery ? args.param.relationshipQuery : null;
-                args.param.direction = args.param.direction ? args.param.direction : 'outgoing';
+                args.param.startNode = args.param.startNode || null;
+                args.param.endNode = args.param.endNode || null;
+                args.param.weightProperty = args.param.weightProperty || null;
+                args.param.defaultValue = args.param.defaultValue || null;
+                args.param.write = args.param.write || true;
+                args.param.writeProperty = args.param.writeProperty || "sssp";
+                args.param.nodeQuery = args.param.nodeQuery || null;
+                args.param.relationshipQuery = args.param.relationshipQuery || null;
+                args.param.direction = args.param.direction || "outgoing";
 
                 query = {
                     query: "CALL algo.shortestPath({startNode}, {endNode}, {weightProperty}, {nodeQuery: {nodeQuery}, relationshipQuery: {relationshipQuery}, defaultValue: {defaultValue}, write: {write}, writeProperty: {writeProperty}, direction: {direction}}) YIELD nodeCount, totalCost, loadMillis, evalMillis, writeMillis",
-                    param: args.param
-                }
+                    params: {
+                        startNode: args.param.startNode,
+                        endNode: args.param.endNode,
+                        weightProperty: args.param.weightProperty,
+                        nodeQuery: args.param.nodeQuery,
+                        relationshipQuery: args.param.relationshipQuery,
+                        defaultValue: args.param.defaultValue,
+                        write: args.param.write,
+                        writeProperty: args.param.writeProperty,
+                        direction: args.param.direction
+                    }
+                };
                 break;
 
             case PathFindingAlgorithmEnum.SingleSourceShortestPath:
-                args.param.startNode = args.param.startNode ? args.param.startNode : null;
-                args.param.weightProperty = args.param.weightProperty ? args.param.weightProperty : null;
-                args.param.delta = args.param.delta ? args.param.delta : null;
-                args.param.write = args.param.write ? args.param.write : true;
-                args.param.writeProperty = args.param.writeProperty ? args.param.writeProperty : 'sssp';
-                args.param.nodeQuery = args.param.nodeQuery ? args.param.nodeQuery : null;
-                args.param.relationshipQuery = args.param.relationshipQuery ? args.param.relationshipQuery : null;
-                args.param.direction = args.param.direction ? args.param.direction : 'outgoing';
+                args.param.startNode = args.param.startNode || null;
+                args.param.weightProperty = args.param.weightProperty || null;
+                args.param.delta = args.param.delta || null;
+                args.param.write = args.param.write || true;
+                args.param.writeProperty = args.param.writeProperty || "sssp";
+                args.param.nodeQuery = args.param.nodeQuery || null;
+                args.param.relationshipQuery = args.param.relationshipQuery || null;
+                args.param.direction = args.param.direction || "outgoing";
 
                 query = {
                     query: "CALL algo.shortestPath.deltaStepping({startNode}, {weightProperty}, {delta}, {defaultValue: {defaultValue}, write: {write}, writeProperty: {writeProperty}}) YIELD nodeCount, loadDuration, evalDuration, writeDuration",
-                    param: args.param
-                }
+                    params: args.param
+                };
                 break;
 
             case PathFindingAlgorithmEnum.AllPairsShortestPath:
-                args.param.weightProperty = args.param.weightProperty ? args.param.weightProperty : null;
-                args.param.nodeQuery = args.param.nodeQuery ? args.param.nodeQuery : null;
-                args.param.relationshipQuery = args.param.relationshipQuery ? args.param.relationshipQuery : null;
-                args.param.defaultValue = args.param.defaultValue ? args.param.defaultValue : null;
+                args.param.weightProperty = args.param.weightProperty || null;
+                args.param.nodeQuery = args.param.nodeQuery || null;
+                args.param.relationshipQuery = args.param.relationshipQuery || null;
+                args.param.defaultValue = args.param.defaultValue || null;
 
                 query = {
                     query: "CALL algo.allShortestPaths.stream({weightProperty}, {nodeQuery: {nodeQuery}, relationshipQuery: {relationshipQuery}, defaultValue: {defaultValue}}) YIELD sourceNodeId, targetNodeId, distance",
-                    param: args.param
-                }
+                    params: {
+                        weightProperty: args.param.weightProperty,
+                        nodeQuery: args.param.nodeQuery,
+                        relationshipQuery: args.param.relationshipQuery,
+                        defaultValue: args.param.defaultValue
+                    }
+                };
 
                 break;
 
             case PathFindingAlgorithmEnum.AStar:
-                args.param.startNode = args.param.startNode ? args.param.startNode : null;
-                args.param.endNode = args.param.endNode ? args.param.endNode : null;
-                args.param.weightProperty = args.param.weightProperty ? args.param.weightProperty : null;
-                args.param.defaultValue = args.param.defaultValue ? args.param.defaultValue : null;
-                args.param.propertyKeyLat = args.param.propertyKeyLat ? args.param.propertyKeyLat : null;
-                args.param.propertyKeyLon = args.param.propertyKeyLon ? args.param.propertyKeyLon : null;
-                args.param.nodeQuery = args.param.nodeQuery ? args.param.nodeQuery : null;
-                args.param.relationshipQuery = args.param.relationshipQuery ? args.param.relationshipQuery : null;
-                args.param.direction = args.param.direction ? args.param.direction : 'outgoing';
+                args.param.startNode = args.param.startNode || null;
+                args.param.endNode = args.param.endNode || null;
+                args.param.weightProperty = args.param.weightProperty || null;
+                args.param.defaultValue = args.param.defaultValue || null;
+                args.param.propertyKeyLat = args.param.propertyKeyLat || null;
+                args.param.propertyKeyLon = args.param.propertyKeyLon || null;
+                args.param.nodeQuery = args.param.nodeQuery || null;
+                args.param.relationshipQuery = args.param.relationshipQuery || null;
+                args.param.direction = args.param.direction || "outgoing";
 
                 query = {
                     query: "CALL algo.shortestPath.astar.stream(({startNode}, {endNode}, {weightProperty}, {propertyKeyLat}, {propertyKeyLon}, {nodeQuery: {nodeQuery}, relationshipQuery: {relationshipQuery}, direction: {direction}, defaultValue: {defaultValue}}) YIELD nodeId, cost",
-                    param: args.param
-                }
+                    params: {
+                        startNode: args.param.startNode,
+                        endNode: args.param.endNode,
+                        weightProperty: args.param.weightProperty,
+                        propertyKeyLat: args.param.propertyKeyLat,
+                        propertyKeyLon: args.param.propertyKeyLon,
+                        nodeQuery: args.param.nodeQuery,
+                        relationshipQuery: args.param.relationshipQuery,
+                        direction: args.param.direction,
+                        defaultValue: args.param.defaultValue
+                    }
+                };
 
                 break;
 
             case PathFindingAlgorithmEnum.KShortestPath:
-                args.param.startNode = args.param.startNode ? args.param.startNode : null;
-                args.param.endNode = args.param.endNode ? args.param.endNode : null;
+                args.param.startNode = args.param.startNode || null;
+                args.param.endNode = args.param.endNode || null;
                 args.param.k = args.param.k ? args.param.k : null;
-                args.param.weightProperty = args.param.weightProperty ? args.param.weightProperty : null;
-                args.param.defaultValue = args.param.defaultValue ? args.param.defaultValue : null;
-                args.param.write = args.param.write ? args.param.write : true;
-                args.param.writeProperty = args.param.writeProperty ? args.param.writeProperty : 'sssp';
-                args.param.nodeQuery = args.param.nodeQuery ? args.param.nodeQuery : null;
-                args.param.relationshipQuery = args.param.relationshipQuery ? args.param.relationshipQuery : null;
-                args.param.direction = args.param.direction ? args.param.direction : 'outgoing';
-                args.param.maxDepth = args.param.maxDepth ? args.param.maxDepth : neo4j.Integer.MAX_VALUE;
-                args.param.writePropertyPrefix = args.param.writePropertyPrefix ? args.param.writePropertyPrefix : 'PATH_';
+                args.param.weightProperty = args.param.weightProperty || null;
+                args.param.defaultValue = args.param.defaultValue || null;
+                args.param.write = args.param.write || true;
+                args.param.writeProperty = args.param.writeProperty || "sssp";
+                args.param.nodeQuery = args.param.nodeQuery || null;
+                args.param.relationshipQuery = args.param.relationshipQuery || null;
+                args.param.direction = args.param.direction || "outgoing";
+                args.param.maxDepth = args.param.maxDepth || neo4j.Integer.MAX_VALUE;
+                args.param.writePropertyPrefix = args.param.writePropertyPrefix ? args.param.writePropertyPrefix : "PATH_";
 
                 query = {
                     query: "CALL algo.kShortestPaths({startNode}, {endNode}, {k}, {weightProperty}, {nodeQuery: {nodeQuery}, relationshipQuery: {relationshipQuery}, direction: {direction}, defaultValue: {defaultValue}, maxDepth: {maxDepth}, write: {write}, writePropertyPrefix: {writePropertyPrefix}}) YIELD resultCount, loadMillis, evalMillis, writeMillis",
-                    param: args.param
-                }
+                    params: args.param
+                };
                 break;
 
             case PathFindingAlgorithmEnum.RandomWalk:
                 args.param.start = args.param.start ? args.param.start : null;
                 args.param.steps = args.param.steps ? args.param.steps : 10;
                 args.param.walks = args.param.walks ? args.param.walks : 1;
-                args.param.graph = args.param.graph ? args.param.graph : 'heavy';
-                args.param.nodeQuery = args.param.nodeQuery ? args.param.nodeQuery : null;
-                args.param.relationshipQuery = args.param.relationshipQuery ? args.param.relationshipQuery : null;
-                args.param.direction = args.param.direction ? args.param.direction : 'both';
-                args.param.mode = args.param.mode ? args.param.mode : 'random';
+                args.param.graph = args.param.graph ? args.param.graph : "heavy";
+                args.param.nodeQuery = args.param.nodeQuery || null;
+                args.param.relationshipQuery = args.param.relationshipQuery || null;
+                args.param.direction = args.param.direction || "both";
+                args.param.mode = args.param.mode ? args.param.mode : "random";
                 args.param.inOut = args.param.inOut ? args.param.inOut : 1.0;
                 args.param.return = args.param.return ? args.param.return : 1.0;
                 args.param.path = args.param.path ? args.param.path : false;
 
                 query = {
                     query: "CALL algo.randomWalk.stream({start}, {steps}, {walks}, {graph: {graph}, nodeQuery: {nodeQuery}, relationshipQuery: {relationshipQuery}, direction: {direction}, mode: {mode}, inOut: {inOut}, return: {return}, path: {path}}) YIELD nodes, path",
-                    param: args.param
-                }
+                    params: args.param
+                };
                 break;
         }
 
@@ -223,35 +241,35 @@ export default class NeoVis extends Visualiser {
     /**
      * Determine nodes' importance using a selected algorithm
      * See <a href="https://neo4j.com/docs/graph-algorithms/current/algorithms/centrality/"> Centrality algorithms </a> for more details
-     * @param {import('../../types/visualiser/Visualiser').CentralityAlgorithmEnum} algo CentralityAlgorithm 
-     * @param  {import('../../types/visualiser/NeoVis').CentralityAlgorithmParam} args the remaining parameters
+     * @param {CentralityAlgorithmEnum} algo CentralityAlgorithm
+     * @param  {CentralityAlgorithmParam} args the remaining parameters
      */
-    centrality(algo, args) {
+    public centrality(algo: CentralityAlgorithmEnum, args: CentralityAlgorithmParam) {
 
         if (algo === undefined) {
             console.log("No Centrality Algorithm selected!");
             return;
         }
 
-        args.label = args.label ? args.label : null;
-        args.relationship = args.relationship ? args.relationship : null;
-        args.direction = args.direction ? args.direction : 'OUTGOING';
-        args.iterations = args.iterations ? args.iterations : 20;
-        args.dampingFactor = args.dampingFactor ? args.dampingFactor : 0.85;
-        args.weightProperty = args.weightProperty ? args.weightProperty : 'weight';
-        args.defaultValue = args.defaultValue ? args.defaultValue : 0.0;
-        args.write = args.write ? args.write : true;
-        args.graph = args.graph ? args.graph : 'heavy';
-        args.stats = args.stats ? args.stats : true;
-        args.writeProperty = args.writeProperty ? args.writeProperty : this._centrality;
+        args.label = args.label || Object.keys(this._config.nodes)[0] || null;
+        args.relationship = args.relationship || Object.keys(this._config.relationships)[0] || null;
+        args.direction = args.direction || "outgoing";
+        args.iterations = args.iterations || 20;
+        args.dampingFactor = args.dampingFactor || 0.85;
+        args.weightProperty = args.weightProperty || this._config.relationships[args.relationship].thickness || "weight";
+        args.defaultValue = args.defaultValue || 0.0;
+        args.write = args.write || true;
+        args.graph = args.graph || "heavy";
+        args.stats = args.stats || true;
+        args.writeProperty = args.writeProperty || this._config.nodes[args.label].size;
 
-        let query = undefined;
+        let query;
         switch (algo) {
             case CentralityAlgorithmEnum.None: default:
                 return;
 
             case CentralityAlgorithmEnum.PageRank:
-                args.writeProperty = args.writeProperty ? args.writeProperty : 'pagerank';
+                args.writeProperty = args.writeProperty || "pagerank";
 
                 query = {
                     query: "CALL algo.pageRank({label}, {relationship}, {direction: {direction}, iterations: {iterations}, dampingFactor: {dampingFactor}, write: {write}, writeProperty: {writeProperty}})\nYIELD nodes, iterations, loadMillis, computeMillis, writeMillis, dampingFactor, write, writeProperty",
@@ -264,12 +282,12 @@ export default class NeoVis extends Visualiser {
                         write: args.write,
                         writeProperty: args.writeProperty
                     }
-                }
+                };
                 break;
 
             case CentralityAlgorithmEnum.ArticleRank:
 
-                args.writeProperty = args.writeProperty ? args.writeProperty : 'pagerank';
+                args.writeProperty = args.writeProperty || "pagerank";
 
                 query = {
                     query: "CALL algo.articleRank({label}, {relationship}, {iterations: {iterations}, dampingFactor: {dampingFactor}, write: {write}, writeProperty: {writeProperty}})\nYIELD nodes, iterations, loadMillis, computeMillis, writeMillis, dampingFactor, write, writeProperty",
@@ -281,12 +299,12 @@ export default class NeoVis extends Visualiser {
                         write: args.write,
                         writeProperty: args.writeProperty
                     }
-                }
+                };
                 break;
 
             case CentralityAlgorithmEnum.BetweenessCentrality:
 
-                args.writeProperty = args.writeProperty ? args.writeProperty : 'centrality';
+                args.writeProperty = args.writeProperty || "centrality";
 
                 query = {
                     query: "CALL algo.betweenness({label}, {relationship}, {direction: {direction}, write: {write}, stats: {stats}, writeProperty: {writeProperty}})\nYIELD nodes, minCentrality, maxCentrality, sumCentrality, loadMillis, computeMillis, writeMillis",
@@ -298,12 +316,12 @@ export default class NeoVis extends Visualiser {
                         stats: args.stats,
                         writeProperty: args.writeProperty
                     }
-                }
+                };
                 break;
 
             case CentralityAlgorithmEnum.ClosenessCentrality:
 
-                args.writeProperty = args.writeProperty ? args.writeProperty : 'centrality';
+                args.writeProperty = args.writeProperty || "centrality";
 
                 query = {
                     query: "CALL algo.closeness({label}, {relationship}, {write: {write}, writeProperty: {writeProperty}, graph: {graph}})\nYIELD nodes, loadMillis, computeMillis, writeMillis",
@@ -314,12 +332,12 @@ export default class NeoVis extends Visualiser {
                         writeProperty: args.writeProperty,
                         graph: args.graph
                     }
-                }
+                };
                 break;
 
             case CentralityAlgorithmEnum.HarmonicCentrality:
 
-                args.writeProperty = args.writeProperty ? args.writeProperty : 'centrality';
+                args.writeProperty = args.writeProperty || "centrality";
 
                 query = {
                     query: "CALL algo.closeness.harmonic({label}, {relationship}, {write: {write}, writeProperty: {writeProperty}, graph: {graph}})\nYIELD nodes, loadMillis, computeMillis, writeMillis",
@@ -330,12 +348,12 @@ export default class NeoVis extends Visualiser {
                         writeProperty: args.writeProperty,
                         graph: args.graph
                     }
-                }
+                };
                 break;
 
             case CentralityAlgorithmEnum.EigenvectorCentrality:
 
-                args.writeProperty = args.writeProperty ? args.writeProperty : 'eigenvector';
+                args.writeProperty = args.writeProperty || "eigenvector";
 
                 query = {
                     query: "CALL algo.eigenvector({label}, {relationship}, {write: {write}, writeProperty: {writeProperty}})\nYIELD nodes, loadMillis, computeMillis, writeMillis, write, writeProperty",
@@ -345,12 +363,12 @@ export default class NeoVis extends Visualiser {
                         write: args.write,
                         writeProperty: args.writeProperty
                     }
-                }
+                };
                 break;
 
             case CentralityAlgorithmEnum.DegreeCentrality:
 
-                args.writeProperty = args.writeProperty ? args.writeProperty : 'degree';
+                args.writeProperty = args.writeProperty || "degree";
 
                 query = {
                     query: "CALL algo.degree({label}, {relationship}, {write: {write}, writeProperty: {writeProperty}})\nYIELD nodes, loadMillis, computeMillis, writeMillis, write, writeProperty",
@@ -360,7 +378,7 @@ export default class NeoVis extends Visualiser {
                         write: args.write,
                         writeProperty: args.writeProperty
                     }
-                }
+                };
                 break;
         }
 
@@ -372,36 +390,36 @@ export default class NeoVis extends Visualiser {
      * Detect communities using a selected algorithm
      * See <a href="https://neo4j.com/docs/graph-algorithms/current/algorithms/community/"> Community detection algorithms </a> for more details
      * @param {CommunityDetectionAlgoritmEnum} algo CommunityDetectionAlgorithm
-     * @param  {import('../../types/visualiser/NeoVis').CommunityDetectionParam} args the remaining parameters
+     * @param  {CommunityDetectionParam} args the remaining parameters
      */
-    detectCommunity(algo, args) {
+    public detectCommunity(algo: CommunityDetectionAlgoritmEnum, args: CommunityDetectionParam) {
 
         if (algo === undefined) {
             console.log("No CommunityDetectionAlgorithm selected!");
             return;
         }
 
-        let query = undefined;
+        let query;
 
-        args.label = args.label ? args.label : null;
-        args.relationship = args.relationship ? args.relationship : null;
-        args.direction = args.direction ? args.direction : 'OUTGOING';
-        args.iterations = args.iterations ? args.iterations : 1;
-        args.weightProperty = args.weightProperty ? args.weightProperty : "weight";
-        args.defaultValue = args.defaultValue ? args.defaultValue : null;
-        args.write = args.write ? args.write : true;
-        args.graph = args.graph ? args.graph : 'heavy';
-        args.writeProperty = args.writeProperty ? args.writeProperty : this._community;
-        args.threshold = args.threshold ? args.threshold : null;
-        args.partitionProperty = args.partitionProperty ? args.partitionProperty : this._community;
-        args.clusteringCoefficientProperty = args.clusteringCoefficientProperty ? args.clusteringCoefficientProperty : "coefficient"
+        args.label = args.label || Object.keys(this._config.nodes)[0] || null;
+        args.relationship = args.relationship || Object.keys(this._config.relationships)[0] || null;
+        args.direction = args.direction || "outgoing";
+        args.iterations = args.iterations || 1;
+        args.weightProperty = args.weightProperty || this._config.relationships[args.relationship].thickness || "weight";
+        args.defaultValue = args.defaultValue || null;
+        args.write = args.write || true;
+        args.graph = args.graph || "heavy";
+        args.writeProperty = args.writeProperty || this._config.nodes[args.label].community || "community";
+        args.threshold = args.threshold || null;
+        args.partitionProperty = args.partitionProperty || this._config.nodes[args.label].community || "community";
+        args.clusteringCoefficientProperty = args.clusteringCoefficientProperty || "coefficient";
 
         switch (algo) {
             case CommunityDetectionAlgoritmEnum.None: default:
                 return;
 
             case CommunityDetectionAlgoritmEnum.Louvain:
-                this._extraProps.push('unbalanced', 'balanced');
+                this._extraProps.push("unbalanced", "balanced");
 
                 query = {
                     query: "CALL algo.louvain({label}, {relationship}, { weightProperty: {weightProperty}, defaultValue: {defaultValue}, write: {write}, writeProperty: {writeProperty} })\nYIELD nodes, communityCount, iterations, loadMillis, computeMillis, writeMillis",
@@ -413,7 +431,7 @@ export default class NeoVis extends Visualiser {
                         write: args.write,
                         writeProperty: args.writeProperty
                     }
-                }
+                };
                 break;
 
             case CommunityDetectionAlgoritmEnum.LabelPropagation:
@@ -428,7 +446,7 @@ export default class NeoVis extends Visualiser {
                         write: args.write,
                         writeProperty: args.writeProperty
                     }
-                }
+                };
                 break;
 
             case CommunityDetectionAlgoritmEnum.ConnectedComponents:
@@ -445,7 +463,7 @@ export default class NeoVis extends Visualiser {
                         graph: args.graph,
                         partitionProperty: args.partitionProperty
                     }
-                }
+                };
                 break;
 
             case CommunityDetectionAlgoritmEnum.StronglyConnectedComponents:
@@ -458,7 +476,7 @@ export default class NeoVis extends Visualiser {
                         writeProperty: args.writeProperty,
                         graph: args.graph
                     }
-                }
+                };
                 break;
 
             case CommunityDetectionAlgoritmEnum.ClusteringCoefficient:
@@ -470,7 +488,7 @@ export default class NeoVis extends Visualiser {
                         write: args.write,
                         writeProperty: args.writeProperty
                     }
-                }
+                };
                 break;
 
             case CommunityDetectionAlgoritmEnum.BalancedTriads:
@@ -483,20 +501,20 @@ export default class NeoVis extends Visualiser {
                         writeProperty: args.writeProperty,
                         weightProperty: args.weightProperty
                     }
-                }
+                };
                 break;
         }
 
         console.log(query);
-        this.renderWithCypher(query, this.queryLimit);
+        this.renderWithCypher(query, this._queryLimit);
     }
 
     /**
      * Tell the visualiser to render
      */
-    refresh() {
+    public refresh() {
         try {
-            this._renderer.reload()
+            this._renderer.reload();
         } catch (e) {
             this._renderer.render();
         }
@@ -504,14 +522,14 @@ export default class NeoVis extends Visualiser {
 
     /**
      * Make neojs render the selected nodes returned by the cypher query
-     * @param {import('../../types').QueryData} querydata 
+     * @param {QueryData} querydata
      * @param {number} queryLimit whether to display the outcome
      */
-    renderWithCypher(querydata, queryLimit = 25) {
+    public renderWithCypher(querydata: QueryData, queryLimit: number = 25) {
         let cypher = querydata.query;
 
         if (querydata.params) {
-            for (let param of Object.keys(querydata.params)) {
+            for (const param of Object.keys(querydata.params)) {
                 let arg = querydata.params[param];
                 switch (typeof arg) {
                     case "string":
@@ -524,7 +542,7 @@ export default class NeoVis extends Visualiser {
             }
         }
 
-        const limitString = queryLimit == 0 ? '' : ' LIMIT ' + queryLimit;
+        const limitString = queryLimit == 0 ? "" : " LIMIT " + queryLimit;
         cypher = [cypher, this._config.initial_cypher.replace("LIMIT 25", limitString)].join("\n");
         console.log(cypher);
         this._renderer.renderWithCypher(cypher);
@@ -532,18 +550,18 @@ export default class NeoVis extends Visualiser {
 
     /**
      * Make neojs render the selected nodes returned by the cypher query
-     * @param {import('../../types').QueryData} querydata 
+     * @param {QueryData} querydata
      * @param {number} queryLimit whether to display the outcome
      */
-    displayWithCypher(querydata, queryLimit = 0) {
+    public displayWithCypher(querydata: QueryData, queryLimit: number = 0) {
         if (!querydata.query.includes("MATCH")) {
             return;
         }
 
-        const limitString = queryLimit == 0 ? '' : ' LIMIT ' + queryLimit;
+        const limitString = queryLimit == 0 ? "" : " LIMIT " + queryLimit;
         let cypher = querydata.query;
         if (querydata.params) {
-            for (let param of Object.keys(querydata.params)) {
+            for (const param of Object.keys(querydata.params)) {
                 let arg = querydata.params[param];
                 switch (typeof arg) {
                     case "string":
@@ -558,34 +576,32 @@ export default class NeoVis extends Visualiser {
 
         cypher += limitString;
 
-        //console.log(cypher);
+        // console.log(cypher);
 
-        this._renderer.renderWithCypher(cypher, queryLimit);
+        this._renderer.renderWithCypher(cypher);
     }
 
     /**
      * Remove all styling elements by removing calculated properties on db nodes
      */
-    async clear() {
-        const cypher = "MATCH (n:Account) REMOVE " + this._extraProps.map(prop => "n." + prop).join(', ');
-        this.displayWithCypher({ query: cypher })
+    public async clear() {
+        const cypher = "MATCH (n:Account) REMOVE " + this._extraProps.map((prop) => "n." + prop).join(", ");
+        this.displayWithCypher({ query: cypher });
     }
 
     /**
      * Display relationships from certain node AND/OR to certain node
-     * @param {string} nodeAddress 
-     * @param {boolean} from 
+     * @param {string} nodeAddress
+     * @param {boolean} from
      * @param {boolean} to
      */
-    filterNodesByAddress(nodeAddress, from = false, to = false) {
+    public filterNodesByAddress(nodeAddress: string, from: boolean = false, to: boolean = false) {
         if (!from && !to) {
             this.focusOnNode(nodeAddress);
-        }
-
-        else {
+        } else {
             let cypher = "MATCH (n:Account)-[r:TRANSFER]->(m:Account) WHERE false";
             if (from) {
-                cypher += " OR n.address = '" + nodeAddress + "'"
+                cypher += " OR n.address = '" + nodeAddress + "'";
             }
 
             if (to) {
@@ -595,20 +611,20 @@ export default class NeoVis extends Visualiser {
             cypher += " RETURN n,r,m";
 
             console.log(cypher);
-            this.displayWithCypher({ query: cypher }, this.queryLimit);
+            this.displayWithCypher({ query: cypher }, this._queryLimit);
         }
     }
 
     /**
      * Filter display by dates
      * @param {string} nodeAddress per address
-     * @param {Date} fromDate 
-     * @param {Date} toDate 
+     * @param {Date} fromDate
+     * @param {Date} toDate
      */
-    filterNodesByDates(fromDate, toDate, nodeAddress = undefined) {
+    public filterNodesByDates(fromDate: Date, toDate: Date, nodeAddress: string = undefined) {
 
         if (fromDate.getTime() > toDate.getTime()) {
-            throw ("fromDate > toDate")
+            throw new Error(("fromDate > toDate"));
         }
 
         const fDate = neo4j.types.DateTime.fromStandardDate(fromDate);
@@ -622,7 +638,7 @@ export default class NeoVis extends Visualiser {
 
         cypher += " RETURN n,r,m";
 
-        this.displayWithCypher({ query: cypher, params: { fromDate: fDate, toDate: tDate } }, this.queryLimit);
+        this.displayWithCypher({ query: cypher, params: { fromDate: fDate, toDate: tDate } }, this._queryLimit);
     }
 
     /**
@@ -631,38 +647,38 @@ export default class NeoVis extends Visualiser {
      * @param {number} toBlock toBlock
      * @param {number} community community id (depends on graph algorithm)
      */
-    filterCommunityByDateRange(fromBlock, toBlock, community = undefined) {
-        let cypher = 'MATCH (n)-[r]->(m) WHERE datetime({epochMillis: {fromBlock}}) <= datetime(r.date) <= datetime({epochMillis: {toBlock}})';
+    public filterCommunityByDateRange(fromBlock: number, toBlock: number, community: number = undefined) {
+        let cypher = "MATCH (n)-[r]->(m) WHERE datetime({epochMillis: {fromBlock}}) <= datetime(r.date) <= datetime({epochMillis: {toBlock}})";
         if (community) {
-            cypher += ' AND (n.community = ' + community + ' OR m.community = ' + community + ') ';
+            cypher += " AND (n.community = " + community + " OR m.community = " + community + ") ";
         }
 
-        cypher += ' RETURN n,r,m';
+        cypher += " RETURN n,r,m";
 
         this.displayWithCypher({
             query: cypher,
-            params: { fromBlock: fromBlock, toBlock: toBlock }
-        }, this.queryLimit);
+            params: { fromBlock, toBlock }
+        }, this._queryLimit);
     }
 
     /**
      * Focus on a node of this specific address
-     * @param {string} nodeAddress 
+     * @param {string} nodeAddress
      */
-    focusOnNode(nodeAddress) {
-        this._renderer.focusOnNode('address', nodeAddress, {
+    public focusOnNode(nodeAddress: string) {
+        this._renderer.focusOnNode("address", nodeAddress, {
             scale: 1.0,
         });
     }
 
     /**
      * Change queryLimit
-     * @param {number} newLimit 
+     * @param {number} newLimit
      */
-    setQueryLimit(newLimit) {
+    public setQueryLimit(newLimit: number) {
         console.log("NeoVis module: set query limit to " + newLimit);
-        this.queryLimit = newLimit;
+        this._queryLimit = newLimit;
     }
 }
 
-export { NeoVis }
+export { NeoVis };

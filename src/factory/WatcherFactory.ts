@@ -1,20 +1,14 @@
-'use strict'
-
-import EthereumWatcher from "../watcher/EthereumWatcher";
-import Watcher from "../watcher/Watcher";
-
-export const WatcherEnum = {
-    EthereumWatcher: 0
-}
+import { WatcherConstructor, WatcherEnum } from "..";
+import { EthereumWatcher } from "../watcher/EthereumWatcher";
 
 export default class WatcherFactory {
 
     /**
      * Create a database instance
-     * @param {import("../../types").WatcherConstructor} args the arguments corresponding to the class
+     * @param {WatcherConstructor} args the arguments corresponding to the class
      * @returns {Watcher} a database instance or nothing
      */
-    static createWatcherInstance(args) {
+    public static createWatcherInstance(args: WatcherConstructor) {
 
         switch (args.type) {
             case WatcherEnum.EthereumWatcher:
@@ -25,4 +19,4 @@ export default class WatcherFactory {
     }
 }
 
-export { WatcherFactory }
+export { WatcherFactory };

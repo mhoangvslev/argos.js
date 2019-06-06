@@ -1,11 +1,20 @@
-import { Database } from "./Database";
-import * as Neode from "neode";
-import { QueryData } from "../index";
-
-export declare class Neo4J extends Database {
-
+import { Record, Session } from "neo4j-driver/types/v1";
+import Neode = require("neode");
+import Database from "./Database";
+import { DatabaseModel, QueryData } from "..";
+export default class Neo4J extends Database {
+    /**
+     * Create a connection to Neo4J database
+     * @param {string} connection neo4j bolt
+     * @param {string} username neo4j username
+     * @param {string} password neo4j password
+     * @param {boolean} enterpriseMode neo4j enterprise mode
+     * @param {object} settings neo4 driver settings
+     */
+    static createInstance(connection: string, username: string, password: string, enterpriseMode?: boolean, settings?: object): Neo4J;
+    _connection: string;
     _dbInstance: Neode;
-
+    _dbSession: Session;
     /**
      * Create a connection to Neo4J database
      * @param {string} connection neo4j bolt
@@ -15,43 +24,27 @@ export declare class Neo4J extends Database {
      * @param {object} settings neo4 driver settings
      */
     constructor(connection: string, username: string, password: string, enterpriseMode: boolean, settings: object);
-
-    /**
-     * Create a connection to Neo4J database
-     * @param {string} connection neo4j bolt
-     * @param {string} username neo4j username
-     * @param {string} password neo4j password
-     * @param {boolean} enterpriseMode neo4j enterprise mode
-     * @param {object} settings neo4 driver settings
-     */
-    static createInstance(connection: string, username: string, password: string, enterpriseMode: boolean, settings: object): Neo4J;
-
     /**
      * Connect to the database
      */
-    public dbConnect(): void;
-
+    dbConnect(): Promise<Session[]>;
     /**
      * Reconnect to the database
      */
-    public dbReconnect(): void;
-
+    dbReconnect(): Promise<void>;
     /**
      * Close connection to the database
      */
-    public dbTerminate(): void;
-
+    dbTerminate(): Promise<void[]>;
+    /**
+     * Load a model
+     * @param {DatabaseModel} model loaded model using require()
+     */
+    dbCreateModel(model: DatabaseModel): void;
     /**
      * Delete all entry in the database
      */
-    public dbClearAll(): void;
-
-    /**
-     * Load a model
-     * @param {Neode.SchemaObject} model loaded model using require()
-     */
-    public dbCreateModel(model: Neode.SchemaObject): void;
-
+    dbClearAll(): Promise<void>;
     /**
      * Relate two given nodes
      * @param {Neode.Node<any>} start start node
@@ -60,8 +53,7 @@ export declare class Neo4J extends Database {
      * @param {object} relProps relationship properties
      * @return {Promise<void | Neode.Relationship>} the ongoing process
      */
-    public dbRelateNodes(start: Neode.Node<any>, end: Neode.Node<any>, relType: string, relProps: object): Promise<void | Neode.Relationship>;
-
+    dbRelateNodes(start: Neode.Node<any>, end: Neode.Node<any>, relType: string, relProps: object): Promise<void | Neode.Relationship>;
     /**
      * Create a pair of nodes then relate them
      * @param {object} startProps conditions to match start node
@@ -69,19 +61,18 @@ export declare class Neo4J extends Database {
      * @param {string} relType relationship name from model
      * @param {object} relProps conditions to relate nodes
      */
-    public dbCreateNodes(startProps: object, endProps: object, relType: string, relProps: object): Promise<void>;
-
+    dbCreateNodes(startProps: object, endProps: object, relType: string, relProps: object): Promise<void>;
     /**
      * Tell the database to execute a query
-     * @param {QueryData} query where parameters
+     * @param {QueryData} queryData where parameters
      * @returns {Promise<any>} the result of queries
      */
-    public executeQuery(query: QueryData): Promise<any>;
-
+    executeQuery(queryData: QueryData): Promise<Record[]>;
     /**
      * Tell the database to execute a query
-     * @param {string} queries a string query 
+     * @param {QueryData[]} queries a string query
      * @returns {Promise<any>} the result of queries
      */
-    public executeQueries(queries: QueryData[]): Promise<any>;
+    executeQueries(queries: QueryData[]): Promise<any>;
 }
+export { Neo4J };

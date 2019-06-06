@@ -1,13 +1,14 @@
-import { argos } from "../index";
-import * as Neode from "neode";
-import { QueryData } from "../index";
+import Neode = require("neode");
+import { DatabaseModel, NodeType, QueryData } from "..";
 
-export declare abstract class Database {
+export default abstract class Database {
 
     /**
      * Create a Database
      */
-    constructor();
+    constructor() {
+        console.log("Database instance created!");
+    }
 
     /**
      * Connect to the database
@@ -26,19 +27,19 @@ export declare abstract class Database {
 
     /**
      * Load a model
-     * @param {Neode.SchemaObject} model loaded model using require()
+     * @param {DatabaseModel} model loaded model using require()
      */
-    public abstract dbCreateModel(model: Neode.SchemaObject): void;
+    public abstract dbCreateModel(model: DatabaseModel): void;
 
     /**
      * Relate two given nodes
-     * @param {argos.NodeType} start start node
-     * @param {argos.NodeType} end end node
+     * @param {NodeType} start start node
+     * @param {NodeType} end end node
      * @param {string} relType relationship name from model
      * @param {object} relProps relationship properties
-     * @return {Promise<void | Neode.Relationship>} the ongoing process
+     * @return {Promise<void | Relationship>} the ongoing process
      */
-    public abstract dbRelateNodes(start: argos.NodeType, end: argos.NodeType, relType: string, relProps: object): Promise<void | Neode.Relationship>;
+    public abstract dbRelateNodes(start: NodeType, end: NodeType, relType: string, relProps: object): Promise<void | Neode.Relationship>;
 
     /**
      * Create a pair of nodes then relate them
@@ -63,8 +64,11 @@ export declare abstract class Database {
 
     /**
      * Tell the database to execute a query
-     * @param {string} queries a string query 
+     * @param {string} queries a string query
      * @returns {Promise<any>} the result of queries
      */
     public abstract executeQueries(queries: QueryData[]): Promise<any>;
+
 }
+
+export { Database };

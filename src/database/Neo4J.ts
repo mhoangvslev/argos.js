@@ -1,7 +1,8 @@
-'use strict'
+import { Record, Session } from "neo4j-driver/types/v1";
+import Neode = require("neode");
+import Database from "./Database";
 
-import Neode from 'neode';
-import Database from './Database';
+import { DatabaseModel, QueryData } from "..";
 
 export default class Neo4J extends Database {
 
@@ -13,17 +14,12 @@ export default class Neo4J extends Database {
      * @param {boolean} enterpriseMode neo4j enterprise mode
      * @param {object} settings neo4 driver settings
      */
-    constructor(connection, username, password, enterpriseMode, settings) {
-        super();
-        this._connection = connection;
-        this._username = username;
-        this._password = password;
-        this._dbInstance = new Neode(this._connection, this._username, this._password, enterpriseMode, settings);
-        this._dbInstance.with({
-            'Account': settings.model
-        });
-        this._dbSession = this._dbInstance.session();
+    public static createInstance(connection: string, username: string, password: string, enterpriseMode: boolean = false, settings: object = {}) {
+        return new Neo4J(connection, username, password, enterpriseMode, settings);
     }
+    public _connection: string;
+    public _dbInstance: Neode;
+    public _dbSession: Session;
 
     /**
      * Create a connection to Neo4J database
@@ -33,23 +29,26 @@ export default class Neo4J extends Database {
      * @param {boolean} enterpriseMode neo4j enterprise mode
      * @param {object} settings neo4 driver settings
      */
-    static createInstance(connection, username, password, enterpriseMode, settings) {
-        return new Neo4J(connection, username, password, enterpriseMode, settings);
+    constructor(connection: string, username: string, password: string, enterpriseMode: boolean, settings: object) {
+        super();
+        this._dbInstance = new Neode(connection, username, password, enterpriseMode);
+
+        this._dbSession = this._dbInstance.session();
     }
 
     /**
      * Connect to the database
      */
-    dbConnect() {
+    public dbConnect() {
         return Promise.all([
             this._dbSession = this._dbInstance.session()
-        ])
+        ]);
     }
 
     /**
      * Reconnect to the database
      */
-    async dbReconnect() {
+    public async dbReconnect() {
         await this.dbTerminate();
         await this.dbConnect();
     }
@@ -57,7 +56,7 @@ export default class Neo4J extends Database {
     /**
      * Close connection to the database
      */
-    dbTerminate() {
+    public dbTerminate() {
         return Promise.all([
             this._dbSession.close()
         ]);
@@ -65,20 +64,18 @@ export default class Neo4J extends Database {
 
     /**
      * Load a model
-     * @param {Neode.SchemaObject} model loaded model using require()
+     * @param {DatabaseModel} model loaded model using require()
      */
-    dbCreateModel(model) {
-        //console.log('Model: ', model);
-        this._dbInstance.with({
-            'Account': model
-        });
+    public dbCreateModel(model: DatabaseModel) {
+        // console.log('Model: ', model);
+        this._dbInstance.with(model);
     }
 
     /**
      * Delete all entry in the database
      */
-    async dbClearAll() {
-        await this._dbInstance.deleteAll('Account').then(() => {
+    public async dbClearAll() {
+        await this._dbInstance.deleteAll("Account").then(() => {
             console.log("Reset database");
         });
     }
@@ -91,11 +88,9 @@ export default class Neo4J extends Database {
      * @param {object} relProps relationship properties
      * @return {Promise<void | Neode.Relationship>} the ongoing process
      */
-    async dbRelateNodes(start, end, relType, relProps) {
+    public async dbRelateNodes(start: Neode.Node<any>, end: Neode.Node<any>, relType: string, relProps: object): Promise<void | Neode.Relationship> {
         // Create relationships
-        return Promise.all([
-            start.relateTo(end, relType, relProps).catch((error) => { console.log("Could not relate nodes", error); }),
-        ]);
+        return start.relateTo(end, relType, relProps).catch((error) => { console.log("Could not relate nodes", error); });
     }
 
     /**
@@ -105,9 +100,9 @@ export default class Neo4J extends Database {
      * @param {string} relType relationship name from model
      * @param {object} relProps conditions to relate nodes
      */
-    async dbCreateNodes(startProps, endProps, relType, relProps) {
+    public async dbCreateNodes(startProps: object, endProps: object, relType: string, relProps: object) {
         // Find nodes
-        let [start, end] = await Promise.all([
+        const [start, end] = await Promise.all([
             this._dbInstance.mergeOn("Account", startProps, startProps),
             this._dbInstance.mergeOn("Account", endProps, endProps)
 
@@ -118,22 +113,22 @@ export default class Neo4J extends Database {
 
     /**
      * Tell the database to execute a query
-     * @param {import('../../types').QueryData} query where parameters
+     * @param {QueryData} queryData where parameters
      * @returns {Promise<any>} the result of queries
      */
-    async executeQuery(queryData) {
+    public async executeQuery(queryData: QueryData): Promise<Record[]> {
         await this.dbReconnect();
-        console.log(queryData)
+        console.log(queryData);
         const summary = await this._dbInstance.cypher(queryData.query, queryData.params);
         return summary.records;
     }
 
     /**
      * Tell the database to execute a query
-     * @param {import('../../types').QueryData[]} queries a string query 
+     * @param {QueryData[]} queries a string query
      * @returns {Promise<any>} the result of queries
      */
-    async executeQueries(queries) {
+    public async executeQueries(queries: QueryData[]): Promise<any> {
         await this.dbReconnect();
         const summary = await this._dbInstance.batch(queries);
         return summary.records;
@@ -141,4 +136,4 @@ export default class Neo4J extends Database {
 
 }
 
-export { Neo4J }
+export { Neo4J };

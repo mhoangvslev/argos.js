@@ -1,12 +1,12 @@
 {
   "name": "argosjs",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Ethereum smart-contract events visualiser ",
-  "main": "build/index.js",
-  "types": "types/index.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "start": "",
-    "build": "babel src -d build",
+    "prebuild": "tslint -c tslint.json -p tsconfig.json --fix",
+    "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -25,29 +25,18 @@
   },
   "homepage": "https://github.com/mhoangvslev/argos.js#readme",
   "dependencies": {
-    "concurrent-worker": "^1.1.1",
-    "csv-write-stream": "^2.0.0",
-    "ethers": "^4.0.28",
-    "linspace": "^1.0.0",
+    "ethers": "^4.0.29",
     "neo4j-driver": "^1.7.5",
     "neode": "^0.2.15",
     "net": "^1.0.2",
+    "tslint": "^5.17.0",
+    "typescript": "^3.5.1",
     "web3": "^1.0.0-beta.55"
   },
   "devDependencies": {
-    "@babel/cli": "^7.4.4",
-    "@babel/core": "^7.4.5",
-    "@babel/node": "^7.4.5",
-    "@babel/plugin-transform-classes": "^7.4.4",
-    "@babel/plugin-transform-modules-commonjs": "^7.4.4",
-    "@babel/preset-env": "^7.4.5",
     "@types/node": "^11.13.13",
-    "del": "^4.1.1",
-    "gulp": "^4.0.2",
-    "gulp-babel": "^8.0.0",
-    "gulp-jsdoc3": "^2.0.0",
-    "gulp-typedoc": "^2.2.2",
     "jsdoc": "^3.6.2",
+    "marked": "^0.6.2",
     "typedoc": "^0.14.2"
   },
   "directories": {
