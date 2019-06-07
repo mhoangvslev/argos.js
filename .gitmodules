@@ -1,3 +1,6 @@
 [submodule "examples/ArgosJS"]
 	path = examples/ArgosJS
 	url = https://github.com/mhoangvslev/ArgosJS.git
+[submodule "vendor/neovis.js"]
+	path = vendor/neovis.js
+	url = https://github.com/mhoangvslev/neovis.js
