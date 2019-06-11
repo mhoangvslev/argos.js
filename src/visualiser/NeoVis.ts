@@ -1,9 +1,7 @@
-import { v1 as neo4j } from "neo4j-driver";
-import { ArgumentsReader } from "typedoc/dist/lib/utils/options/readers";
 import { Visualiser } from "./Visualiser";
 
-import { Record } from "neo4j-driver/types/v1";
-import { NeoVis as NeoViz, NeoVisConfig } from "neovis.js";
+import {v1 as neo4j} from "neo4j-driver";
+import { NeoVis as NeoViz, NeoVisConfig } from "neovis-ts";
 
 import { CentralityAlgorithmEnum, CentralityAlgorithmParam, CommunityDetectionAlgoritmEnum, CommunityDetectionParam, Neo4JConstructor, PathFindingAlgorithmEnum, PathFindingAlgorithmParam, QueryData } from "..";
 
@@ -54,13 +52,13 @@ export default class NeoVis extends Visualiser {
         this._extraProps = [];
         // this._dbService = DatabaseFactory.createDbInstance(dbConfig);
 
-        this._renderer.registerOnEvent("selectNode", (nodes: Record[]) => {
+        this._renderer.registerOnEvent("selectNode", (nodes: neo4j.Record[]) => {
             for (const node of nodes) {
                 console.log(node.get("n").properties.address);
             }
         });
 
-        this._renderer.registerOnEvent("selectEdge", (edges: Record[]) => {
+        this._renderer.registerOnEvent("selectEdge", (edges: neo4j.Record[]) => {
             for (const edge of edges) {
                 console.log(edge.get("r").properties);
             }
@@ -75,7 +73,7 @@ export default class NeoVis extends Visualiser {
      * @param  { PathFindingAlgorithmParam } args the remaining parameters
      */
     public pathfinding(args: PathFindingAlgorithmParam) {
-        if (ArgumentsReader === undefined) {
+        if (args === undefined) {
             console.log("No Pathfinding Algorithm selected!");
             return;
         }

@@ -33,16 +33,9 @@ or
 npm install https://github.com/zgorizzo69/EthGraphQL
 ```
 
-The package comes with customised `neovis.js` that can be found under `vendor`. You have to build it first:
+## Development
 
-```bash
-cd vendor/neovis.js
-npm run build
-
-# Success, go back to project root
-cd ../../
-npm install vendor/neovis.js
-```
+All customised libraries are put under `vendor` as git modules which are linked to other git repositories. If your
 
 ## If you use Neo4J as GraphDB
 
@@ -106,12 +99,18 @@ this._visualiser.displayWithCypher({ query: "MATCH (n:Account)-[r:TRANSFER]->(m:
 
 ## Demo
 
+- Download Neo4J Desktop 
+
 - Go to the example project folder
 ```bash
 cd examples/ArgosJS/
 ```
+- Launch the project
+```bash
+ng serve
+```
 
-- Launch the 
+- Go to `http://localhost:4200`
 
 ## License
 
