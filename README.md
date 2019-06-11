@@ -104,9 +104,14 @@ this._visualiser.pathfinding({ algo: PathFindingAlgorithmEnum.ShortestPath, para
 this._visualiser.displayWithCypher({ query: "MATCH (n:Account)-[r:TRANSFER]->(m:Account) RETURN n,r,m" }, 700);
 ```
 
-## Example
+## Demo
 
-- 
+- Go to the example project folder
+```bash
+cd examples/ArgosJS/
+```
+
+- Launch the 
 
 ## License
 
