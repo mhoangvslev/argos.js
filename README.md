@@ -37,16 +37,6 @@ npm install https://github.com/zgorizzo69/EthGraphQL
 
 All customised libraries are put under `vendor` as git modules which are linked to other git repositories. If your
 
-## If you use Neo4J as GraphDB
-
-You should also configure your Neo4J database. In neo4j.conf, add:
-```
-# APOC
-apoc.export.file.enabled=true
-apoc.import.file.enabled=true
-apoc.import.file.use_neo4j_config=false
-```
-
 ## Usage
 
 > Create an object of type DatabaseConstructor (here Neo4JConstructor).
@@ -97,20 +87,9 @@ this._visualiser.pathfinding({ algo: PathFindingAlgorithmEnum.ShortestPath, para
 this._visualiser.displayWithCypher({ query: "MATCH (n:Account)-[r:TRANSFER]->(m:Account) RETURN n,r,m" }, 700);
 ```
 
-## Demo
+## Examples
 
-- Download Neo4J Desktop 
-
-- Go to the example project folder
-```bash
-cd examples/ArgosJS/
-```
-- Launch the project
-```bash
-ng serve
-```
-
-- Go to `http://localhost:4200`
+Under examples you will be linked to other repositories.
 
 ## License
 

@@ -1,16 +1,15 @@
 import { Visualiser } from "./Visualiser";
 
-import {v1 as neo4j} from "neo4j-driver";
-import { NeoVis as NeoViz, NeoVisConfig } from "neovis-ts";
+import { v1 as neo4j } from "neo4j-driver";
+import { NeoVis as NeoViz, NeoVisConfig, VisualisationStrategy } from "neovis-ts";
 
 import { CentralityAlgorithmEnum, CentralityAlgorithmParam, CommunityDetectionAlgoritmEnum, CommunityDetectionParam, Neo4JConstructor, PathFindingAlgorithmEnum, PathFindingAlgorithmParam, QueryData } from "..";
 
 export default class NeoVis extends Visualiser {
-
-    public _renderer: NeoViz;
-    public _extraProps: string[];
-    public _queryLimit: number = 25;
-    public _config: NeoVisConfig;
+    private _renderer: NeoViz;
+    private _extraProps: string[];
+    private _queryLimit: number = 25;
+    private _config: NeoVisConfig;
 
     /**
      * Create a NeoVis visualiser instance from neo4j db config
@@ -18,7 +17,7 @@ export default class NeoVis extends Visualiser {
      * @param {string} containerId the html element that holds the visualiser
      * @param {NeovisConfig} neovis NeoVis properties
      */
-    constructor(dbConfig: Neo4JConstructor, containerId: string, neovis: NeoVisConfig) {
+    constructor(dbConfig: Neo4JConstructor, containerId: string, neovis: any) {
         super();
 
         this._config = {
@@ -28,33 +27,32 @@ export default class NeoVis extends Visualiser {
             server_user: dbConfig.username,
             server_password: dbConfig.password,
 
-            nodes: neovis.nodes,
-            relationships: neovis.relationships,
+            node: neovis.node,
+            relationship: neovis.relationship,
 
             visOptions: {
                 edges: {
                     arrows: {
-                        to: true
+                        to: neovis.arrows
                     }
                 }
             },
 
-            initial_cypher: "MATCH (n)-[r:TRANSFER]->(m)\n" +
+            initial_cypher: "MATCH (n)-[r]->(m)\n" +
                 /*"WITH DISTINCT n\n" +
                 "ORDER BY n.size DESC\n" +
                 "WITH n.community as community, collect(n) as nds\n" +
                 "WITH community, head(nds) as pole\n" +
                 "MATCH (pole)\n" +*/
-                "RETURN * LIMIT 25"
+                "RETURN n, r, m LIMIT 25"
         };
 
         this._renderer = new NeoViz(this._config);
         this._extraProps = [];
-        // this._dbService = DatabaseFactory.createDbInstance(dbConfig);
 
         this._renderer.registerOnEvent("selectNode", (nodes: neo4j.Record[]) => {
             for (const node of nodes) {
-                console.log(node.get("n").properties.address);
+                console.log(node.get("n").properties);
             }
         });
 
@@ -85,12 +83,12 @@ export default class NeoVis extends Visualiser {
                 return;
 
             case PathFindingAlgorithmEnum.MinimumWeightSpanningTree:
-                args.param.label = args.param.label || Object.keys(this._config.nodes)[0];
-                args.param.relationshipType = args.param.relationshipType || Object.keys(this._config.relationships)[0];
-                args.param.weightProperty = args.param.weightProperty || this._config.relationships[args.param.relationshipType].thickness || "pth_mst_weight";
+                args.param.label = args.param.label || null;
+                args.param.relationshipType = args.param.relationshipType || null;
+                args.param.weightProperty = args.param.weightProperty || this._config.relationship.thickness || "pth_mst_weight";
                 args.param.startNodeId = args.param.startNodeId || null;
                 args.param.write = args.param.write || true;
-                args.param.writeProperty = args.param.writeProperty || this._config.nodes[args.param.label].community;
+                args.param.writeProperty = args.param.writeProperty || this._config.node.community;
 
                 query = {
                     query: "CALL algo.spanningTree({label}, {relationshipType}, {weightProperty}, {startNodeId}, {writeProperty: {writeProperty}})\nYIELD loadMillis, computeMillis, writeMillis, effectiveNodeCount",
@@ -249,17 +247,17 @@ export default class NeoVis extends Visualiser {
             return;
         }
 
-        args.label = args.label || Object.keys(this._config.nodes)[0] || null;
-        args.relationship = args.relationship || Object.keys(this._config.relationships)[0] || null;
+        args.label = args.label || null;
+        args.relationship = args.relationship || null;
         args.direction = args.direction || "outgoing";
         args.iterations = args.iterations || 20;
         args.dampingFactor = args.dampingFactor || 0.85;
-        args.weightProperty = args.weightProperty || this._config.relationships[args.relationship].thickness || "weight";
+        args.weightProperty = args.weightProperty || this._config.relationship.thickness || "weight";
         args.defaultValue = args.defaultValue || 0.0;
         args.write = args.write || true;
         args.graph = args.graph || "heavy";
         args.stats = args.stats || true;
-        args.writeProperty = args.writeProperty || this._config.nodes[args.label].size;
+        args.writeProperty = args.writeProperty || this._config.node.size;
 
         let query;
         switch (algo) {
@@ -399,17 +397,17 @@ export default class NeoVis extends Visualiser {
 
         let query;
 
-        args.label = args.label || Object.keys(this._config.nodes)[0] || null;
-        args.relationship = args.relationship || Object.keys(this._config.relationships)[0] || null;
+        args.label = args.label || null;
+        args.relationship = args.relationship || null;
         args.direction = args.direction || "outgoing";
         args.iterations = args.iterations || 1;
-        args.weightProperty = args.weightProperty || this._config.relationships[args.relationship].thickness || "weight";
+        args.weightProperty = args.weightProperty || this._config.relationship.thickness || "weight";
         args.defaultValue = args.defaultValue || null;
         args.write = args.write || true;
         args.graph = args.graph || "heavy";
-        args.writeProperty = args.writeProperty || this._config.nodes[args.label].community || "community";
+        args.writeProperty = args.writeProperty || this._config.node.community || "community";
         args.threshold = args.threshold || null;
-        args.partitionProperty = args.partitionProperty || this._config.nodes[args.label].community || "community";
+        args.partitionProperty = args.partitionProperty || this._config.node.community || "community";
         args.clusteringCoefficientProperty = args.clusteringCoefficientProperty || "coefficient";
 
         switch (algo) {
@@ -523,7 +521,7 @@ export default class NeoVis extends Visualiser {
      * @param {QueryData} querydata
      * @param {number} queryLimit whether to display the outcome
      */
-    public renderWithCypher(querydata: QueryData, queryLimit: number = 25) {
+    public renderWithCypher(querydata: QueryData, queryLimit?: number) {
         let cypher = querydata.query;
 
         if (querydata.params) {
@@ -540,7 +538,7 @@ export default class NeoVis extends Visualiser {
             }
         }
 
-        const limitString = queryLimit == 0 ? "" : " LIMIT " + queryLimit;
+        const limitString = (queryLimit && queryLimit == 0) ? "" : " LIMIT " + this._queryLimit;
         cypher = [cypher, this._config.initial_cypher.replace("LIMIT 25", limitString)].join("\n");
         console.log(cypher);
         this._renderer.renderWithCypher(cypher);
@@ -551,12 +549,12 @@ export default class NeoVis extends Visualiser {
      * @param {QueryData} querydata
      * @param {number} queryLimit whether to display the outcome
      */
-    public displayWithCypher(querydata: QueryData, queryLimit: number = 0) {
+    public displayWithCypher(querydata: QueryData, queryLimit?: number) {
         if (!querydata.query.includes("MATCH")) {
             return;
         }
 
-        const limitString = queryLimit == 0 ? "" : " LIMIT " + queryLimit;
+        const limitString = (queryLimit && queryLimit == 0) ? "" : " LIMIT " + this._queryLimit;
         let cypher = querydata.query;
         if (querydata.params) {
             for (const param of Object.keys(querydata.params)) {
@@ -574,8 +572,7 @@ export default class NeoVis extends Visualiser {
 
         cypher += limitString;
 
-        // console.log(cypher);
-
+        console.log(cypher);
         this._renderer.renderWithCypher(cypher);
     }
 
@@ -583,7 +580,7 @@ export default class NeoVis extends Visualiser {
      * Remove all styling elements by removing calculated properties on db nodes
      */
     public async clear() {
-        const cypher = "MATCH (n:Account) REMOVE " + this._extraProps.map((prop) => "n." + prop).join(", ");
+        const cypher = "MATCH (n) REMOVE " + this._extraProps.map((prop) => "n." + prop).join(", ");
         this.displayWithCypher({ query: cypher });
     }
 
@@ -676,6 +673,13 @@ export default class NeoVis extends Visualiser {
     public setQueryLimit(newLimit: number) {
         console.log("NeoVis module: set query limit to " + newLimit);
         this._queryLimit = newLimit;
+        this.displayWithCypher({
+            query: "MATCH (n)-[r]->(m) RETURN n, r, m"
+        });
+    }
+
+    public setVisualisationStrategy(vs: VisualisationStrategy) {
+        this._renderer.setStrategy(vs);
     }
 }
 

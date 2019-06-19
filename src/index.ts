@@ -194,10 +194,10 @@ export interface Neo4JConstructor extends DatabaseConstructor {
 export interface DatabaseConstructor {
     username: string;
     password: string;
-    model: DatabaseModel;
+    model: DatabaseModels;
 }
 
-export interface DatabaseModel { [alias: string]: Neode.SchemaObject; }
+export interface DatabaseModels { [alias: string]: Neode.SchemaObject; }
 
 export { ProviderType, ContractType, NodeType, DatabaseConstructorType, PathFindingAlgorithmParam };
 

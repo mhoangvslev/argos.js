@@ -1,5 +1,4 @@
-import Neode = require("neode");
-import { DatabaseModel, NodeType, QueryData } from "..";
+import { DatabaseModels, QueryData } from "..";
 
 export default abstract class Database {
 
@@ -27,28 +26,9 @@ export default abstract class Database {
 
     /**
      * Load a model
-     * @param {DatabaseModel} model loaded model using require()
+     * @param {DatabaseModels} model loaded model using require()
      */
-    public abstract dbCreateModel(model: DatabaseModel): void;
-
-    /**
-     * Relate two given nodes
-     * @param {NodeType} start start node
-     * @param {NodeType} end end node
-     * @param {string} relType relationship name from model
-     * @param {object} relProps relationship properties
-     * @return {Promise<void | Relationship>} the ongoing process
-     */
-    public abstract dbRelateNodes(start: NodeType, end: NodeType, relType: string, relProps: object): Promise<void | Neode.Relationship>;
-
-    /**
-     * Create a pair of nodes then relate them
-     * @param {object} startProps conditions to match start node
-     * @param {object} endProps conditions to match end node
-     * @param {string} relType relationship name from model
-     * @param {object} relProps conditions to relate nodes
-     */
-    public abstract dbCreateNodes(startProps: object, endProps: object, relType: string, relProps: object): Promise<void>;
+    public abstract dbCreateModel(model: DatabaseModels): void;
 
     /**
      * Delete all entry in the database
@@ -68,6 +48,10 @@ export default abstract class Database {
      * @returns {Promise<any>} the result of queries
      */
     public abstract executeQueries(queries: QueryData[]): Promise<any>;
+
+    public abstract exportCSV(fileName: string): Promise<any>;
+
+    public abstract importCSV(fileName: string): Promise<any>;
 
 }
 

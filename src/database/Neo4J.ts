@@ -2,7 +2,7 @@ import { Record, Session } from "neo4j-driver/types/v1";
 import Neode = require("neode");
 import Database from "./Database";
 
-import { DatabaseModel, QueryData } from "..";
+import { DatabaseModels, QueryData } from "..";
 
 export default class Neo4J extends Database {
 
@@ -17,9 +17,10 @@ export default class Neo4J extends Database {
     public static createInstance(connection: string, username: string, password: string, enterpriseMode: boolean = false, settings: object = {}) {
         return new Neo4J(connection, username, password, enterpriseMode, settings);
     }
-    public _connection: string;
-    public _dbInstance: Neode;
-    public _dbSession: Session;
+
+    private _dbInstance: Neode;
+    private _dbSession: Session;
+    private _models: DatabaseModels;
 
     /**
      * Create a connection to Neo4J database
@@ -64,51 +65,23 @@ export default class Neo4J extends Database {
 
     /**
      * Load a model
-     * @param {DatabaseModel} model loaded model using require()
+     * @param {DatabaseModels} model loaded model using require()
      */
-    public dbCreateModel(model: DatabaseModel) {
-        // console.log('Model: ', model);
-        this._dbInstance.with(model);
+    public dbCreateModel(model: DatabaseModels) {
+        // console.log("Model: ", model, this._dbInstance);
+        this._dbInstance = this._dbInstance.with(model);
+        this._models = model;
     }
 
     /**
      * Delete all entry in the database
      */
     public async dbClearAll() {
-        await this._dbInstance.deleteAll("Account").then(() => {
-            console.log("Reset database");
-        });
-    }
-
-    /**
-     * Relate two given nodes
-     * @param {Neode.Node<any>} start start node
-     * @param {Neode.Node<any>} end end node
-     * @param {string} relType relationship name from model
-     * @param {object} relProps relationship properties
-     * @return {Promise<void | Neode.Relationship>} the ongoing process
-     */
-    public async dbRelateNodes(start: Neode.Node<any>, end: Neode.Node<any>, relType: string, relProps: object): Promise<void | Neode.Relationship> {
-        // Create relationships
-        return start.relateTo(end, relType, relProps).catch((error) => { console.log("Could not relate nodes", error); });
-    }
-
-    /**
-     * Create a pair of nodes then relate them
-     * @param {object} startProps conditions to match start node
-     * @param {object} endProps conditions to match end node
-     * @param {string} relType relationship name from model
-     * @param {object} relProps conditions to relate nodes
-     */
-    public async dbCreateNodes(startProps: object, endProps: object, relType: string, relProps: object) {
-        // Find nodes
-        const [start, end] = await Promise.all([
-            this._dbInstance.mergeOn("Account", startProps, startProps),
-            this._dbInstance.mergeOn("Account", endProps, endProps)
-
-        ]);
-
-        await this.dbRelateNodes(start, end, relType, relProps);
+        for (const model of Object.keys(this._models)) {
+            await this._dbInstance.deleteAll(model).then(() => {
+                console.log("Reset database");
+            });
+        }
     }
 
     /**
@@ -132,6 +105,111 @@ export default class Neo4J extends Database {
         await this.dbReconnect();
         const summary = await this._dbInstance.batch(queries);
         return summary.records;
+    }
+
+    /**
+     *
+     * @param fileName
+     */
+    public async exportCSV(fileName: string) {
+
+        // For each model
+        for (const modelName of Object.keys(this._models)) {
+
+            // Export the relationships to CSV
+            const relationshipProps = this.findRelationshipModels(modelName);
+            const model = this._models[modelName];
+
+            for (const relationshipProp of relationshipProps) {
+                const rel = model[relationshipProp] as Neode.BaseRelationshipNodeProperties;
+
+                if (rel === undefined) { continue; }
+
+                const relType = rel.relationship;
+                const relTargetType = rel.target;
+                const relProps = Object.keys(rel.properties).sort();
+                const attributes = this.findAttributesModels(modelName);
+                const primaryAttribut = attributes.filter((attribute) => Object.keys(this._models[modelName][attribute]).includes("primary"));
+
+                const relPropsProj = relProps.map((projection) => "r." + projection + " AS " + projection);
+                await this.executeQuery({
+                    query: "CALL apoc.export.csv.query({query}, {file}, {config}) YIELD file, source, format, nodes, relationships, properties, time, rows, data",
+                    params: {
+                        query: "MATCH (src:" + relTargetType + ")-[r:" + relType + "]->(tgt:" + relTargetType + ") RETURN " + relPropsProj.join(", ") + ", tgt." + primaryAttribut + " AS target, src." + primaryAttribut + " AS source",
+                        file: fileName + "_rel_" + relationshipProp + ".csv",
+                        config: null
+                    }
+                });
+
+                if (attributes.length > 1) {
+                    const attributeProj = attributes.map((attr) => "n." + attr + " AS " + attr);
+                    await this.executeQuery({
+                        query: "CALL apoc.export.csv.query({query}, {file}, {config}) YIELD file, source, format, nodes, relationships, properties, time, rows, data",
+                        params: {
+                            query: "MATCH (n: " + relTargetType + ") RETURN " + attributeProj.join(", "),
+                            file: fileName + "_nds_" + relationshipProp + ".csv",
+                            config: null
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+    /**
+     * Import from CSV
+     */
+    public async importCSV(fileName: string) {
+        for (const modelName of Object.keys(this._models)) {
+
+            const relationshipProps = this.findRelationshipModels(modelName);
+            const model = this._models[modelName];
+
+            for (const relationshipProp of relationshipProps) {
+                const rel = model[relationshipProp] as Neode.BaseRelationshipNodeProperties;
+
+                // console.log(rel, this._models);
+
+                if (rel === undefined) { continue; }
+
+                const relType = rel.relationship;
+                const relTargetType = rel.target;
+                const relProps = Object.keys(rel.properties).sort();
+                const attributes = this.findAttributesModels(modelName);
+                const primaryAttribut = attributes.filter((attribute) => Object.keys(this._models[modelName][attribute]).includes("primary"));
+
+                const relPropsProj = relProps.map((projection) => "r." + projection + " = row." + projection);
+                await this.executeQuery({
+                    // e.g 0x7545s465e45.._rel_transfer.csv
+                    query:
+                        "LOAD CSV WITH HEADERS FROM 'file:///" + fileName + "_rel_" + relationshipProp + ".csv' AS row\n" +
+                        "MERGE (src:" + relTargetType + " {" + primaryAttribut + ": row.source})\n" +
+                        "MERGE (tgt:" + relTargetType + " {" + primaryAttribut + ": row.target})\n" +
+                        "MERGE (src)-[r:" + relType + "]->(tgt) ON CREATE SET " + relPropsProj.join(", ")
+                }).catch((err) => { throw err; });
+
+                if (attributes.length > 1) {
+                    const attributeProj = attributes.map((attr) => attr + ": row." + attr);
+                    await this.executeQuery({
+                        query:
+                            "LOAD CSV WITH HEADERS FROM 'file:///" + fileName + "_nds_" + relationshipProp + ".csv' AS row\n" +
+                            "MERGE (n:" + relTargetType + " {" + attributeProj.join(", ") + "})\n"
+                    }).catch((err) => { throw err; });
+                }
+            }
+        }
+    }
+
+    private findRelationshipModels(modelKey: string): string[] {
+        const model: { [alias: string]: any } = this._models[modelKey];
+        const result = Object.keys(model).filter((m) => (model[m].type === "relationship")).sort();
+        return result;
+    }
+
+    private findAttributesModels(modelKey: string): string[] {
+        const model: { [alias: string]: any } = this._models[modelKey];
+        const result = Object.keys(model).filter((m) => model[m].type !== "relationship").sort();
+        return result;
     }
 
 }

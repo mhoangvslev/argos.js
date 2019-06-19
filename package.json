@@ -1,6 +1,6 @@
 {
   "name": "argosjs",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Ethereum smart-contract events visualiser ",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -29,7 +29,6 @@
     "ethers": "^4.0.29",
     "neo4j-driver": "^1.7.5",
     "neode": "^0.2.15",
-    "neovis-ts": "^1.0.4",
     "net": "^1.0.2",
     "tslint": "^5.17.0",
     "typescript": "^3.5.1",
