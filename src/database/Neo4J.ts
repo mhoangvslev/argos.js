@@ -1,11 +1,20 @@
 import { Record, Session } from "neo4j-driver/types/v1";
 import Neode = require("neode");
-import Database from "./Database";
+import * as errors from "../utils/error";
+import { NodeStrategy, PersistenceStrategies, RelationshipStrategy } from "../utils/strategy";
+import { QueryData } from "../utils/types";
+import { EventInfoDataStruct } from "../watcher/Watcher";
+import { Database, DatabaseConstructor, DatabaseModels } from "./Database";
 
-import { DatabaseModels, QueryData } from "..";
+export interface Neo4JConstructor extends DatabaseConstructor {
+    bolt: string;
+    http?: string;
+    https?: string;
+    enterpriseMode?: boolean;
+    driverConf: object;
+}
 
 export default class Neo4J extends Database {
-
     /**
      * Create a connection to Neo4J database
      * @param {string} connection neo4j bolt
@@ -74,14 +83,54 @@ export default class Neo4J extends Database {
     }
 
     /**
+     * Get all nodes' type
+     */
+    public getNodeTypes(): string[] {
+        const result = Object.keys(this._models);
+        // console.log(result);
+        return result;
+    }
+
+    /**
+     * Get all relationships' type
+     */
+    public getRelTypes(): string[] {
+        const result: string[] = [];
+        this.getNodeTypes().forEach((model) => {
+
+            // Get all model's relationships
+            const localRelTypes = this.findRelationshipModels(model).map((relKey) => {
+                const rel = this._models[model][relKey] as Neode.BaseRelationshipNodeProperties;
+                return rel.relationship;
+            });
+
+            localRelTypes.forEach((localRelType) => {
+                if (!result.includes(localRelType)) {
+                    result.push(localRelType);
+                }
+            });
+        });
+
+        // console.log(result);
+        return result;
+    }
+
+    /**
      * Delete all entry in the database
      */
     public async dbClearAll() {
-        for (const model of Object.keys(this._models)) {
-            await this._dbInstance.deleteAll(model).then(() => {
-                console.log("Reset database");
-            });
-        }
+        const cypher: QueryData = {
+            query: "MATCH (n) DETACH DELETE n"
+        };
+        await this.executeQuery(cypher).catch((err) =>
+            errors.throwError({
+                type: errors.DatabaseError.ERROR_DB_QUERY,
+                reason: "Could not clear database",
+                params: {
+                    query: cypher,
+                }
+            })
+        );
     }
 
     /**
@@ -91,9 +140,22 @@ export default class Neo4J extends Database {
      */
     public async executeQuery(queryData: QueryData): Promise<Record[]> {
         await this.dbReconnect();
+
         console.log(queryData);
-        const summary = await this._dbInstance.cypher(queryData.query, queryData.params);
-        return summary.records;
+
+        let result;
+        await this._dbInstance.cypher(queryData.query, queryData.params)
+            .then((statementResult) => { result = statementResult.records; })
+            .catch((err) =>
+                errors.throwError({
+                    type: errors.DatabaseError.ERROR_DB_QUERY,
+                    reason: "Could not execute query",
+                    params: {
+                        query: queryData
+                    }
+                })
+            );
+        return result;
     }
 
     /**
@@ -103,8 +165,16 @@ export default class Neo4J extends Database {
      */
     public async executeQueries(queries: QueryData[]): Promise<any> {
         await this.dbReconnect();
-        const summary = await this._dbInstance.batch(queries);
-        return summary.records;
+        let result: any;
+        await this._dbInstance.batch(queries)
+            .then((records) => { result = records; })
+            .catch((err) =>
+                errors.throwError({
+                    type: errors.DatabaseError.ERROR_DB_QUERY,
+                    reason: "Could not batch-execute queries"
+                })
+            );
+        return result;
     }
 
     /**
@@ -139,6 +209,11 @@ export default class Neo4J extends Database {
                         file: fileName + "_rel_" + relationshipProp + ".csv",
                         config: null
                     }
+                }).catch(() => {
+                    errors.throwError({
+                        type: errors.DatabaseError.ERROR_DB_IMPORT,
+                        reason: "Could not export fileName" + "_rel_" + relationshipProp + ".csv"
+                    });
                 });
 
                 if (attributes.length > 1) {
@@ -150,6 +225,11 @@ export default class Neo4J extends Database {
                             file: fileName + "_nds_" + relationshipProp + ".csv",
                             config: null
                         }
+                    }).catch(() => {
+                        errors.throwError({
+                            type: errors.DatabaseError.ERROR_DB_IMPORT,
+                            reason: "Could not export fileName" + "_nds_" + relationshipProp + ".csv"
+                        });
                     });
                 }
             }
@@ -186,7 +266,12 @@ export default class Neo4J extends Database {
                         "MERGE (src:" + relTargetType + " {" + primaryAttribut + ": row.source})\n" +
                         "MERGE (tgt:" + relTargetType + " {" + primaryAttribut + ": row.target})\n" +
                         "MERGE (src)-[r:" + relType + "]->(tgt) ON CREATE SET " + relPropsProj.join(", ")
-                }).catch((err) => { throw err; });
+                }).catch(() => {
+                    errors.throwError({
+                        type: errors.DatabaseError.ERROR_DB_IMPORT,
+                        reason: "Could not import fileName" + "_rel_" + relationshipProp + ".csv"
+                    });
+                });
 
                 if (attributes.length > 1) {
                     const attributeProj = attributes.map((attr) => attr + ": row." + attr);
@@ -194,10 +279,131 @@ export default class Neo4J extends Database {
                         query:
                             "LOAD CSV WITH HEADERS FROM 'file:///" + fileName + "_nds_" + relationshipProp + ".csv' AS row\n" +
                             "MERGE (n:" + relTargetType + " {" + attributeProj.join(", ") + "})\n"
-                    }).catch((err) => { throw err; });
+                    }).catch(() => {
+                        errors.throwError({
+                            type: errors.DatabaseError.ERROR_DB_IMPORT,
+                            reason: "Could not import fileName" + "_nds_" + relationshipProp + ".csv"
+                        });
+                    });
                 }
             }
         }
+    }
+
+    /**
+     * Prepare queries and batch-persist them to DB
+     * @param eidss the extracted data
+     * @param PS the persistence strategy
+     */
+    public async persistDataToDB(eidss: EventInfoDataStruct[], PS: PersistenceStrategies) {
+        const queries: QueryData[] = [];
+
+        const nodeStrats = (PS as any).NodeStrategy as { [iteration: number]: NodeStrategy };
+        const relStrats = (PS as any).RelationshipStrategy as { [iteration: number]: RelationshipStrategy };
+
+        eidss.forEach((eids) => {
+            for (const relItr of Object.keys(relStrats)) {
+                const relStrat = relStrats[parseInt(relItr)];
+
+                const sourceKey = Object.keys(nodeStrats).filter((itr) => nodeStrats[parseInt(itr)].nodeAlias === relStrat.source)[0];
+                const targetKey = Object.keys(nodeStrats).filter((itr) => nodeStrats[parseInt(itr)].nodeAlias === relStrat.target)[0];
+
+                const sourceNode = nodeStrats[parseInt(sourceKey)];
+                const targetNode = nodeStrats[parseInt(targetKey)];
+
+                // For example, [ attr: toInteger({preparedParamName}), ... ]
+                const sourceMergeStrat = Object.keys(sourceNode.mergeStrategy).map((dbAttr) => {
+                    const propType = this.findNodeAttrType(sourceNode, dbAttr);
+                    const sanitiser = this.findSanitiser(propType);
+                    return dbAttr + ": " + sanitiser + "({" + sourceNode.mergeStrategy[dbAttr] + dbAttr + "})";
+                });
+
+                const targetMergeStrat = Object.keys(targetNode.mergeStrategy).map((dbAttr) => {
+                    const propType = this.findNodeAttrType(targetNode, dbAttr);
+                    const sanitiser = this.findSanitiser(propType);
+                    return dbAttr + ": " + sanitiser + "({" + targetNode.mergeStrategy[dbAttr] + dbAttr + "})";
+                });
+
+                // For example, [ rel.attr = toInteger({prepareParamName}), ... ]
+                const relCreateStrat = Object.keys(relStrat.createStrategy).map((dbAttr) => {
+                    const propType = this.findRelationshipAttrType(relStrat, dbAttr);
+                    const sanitiser = this.findSanitiser(propType);
+                    return relStrat.relAlias + "." + dbAttr + " = " + sanitiser + " ({" + relStrat.createStrategy[dbAttr] + dbAttr + "})";
+                });
+
+                // Format for prepared query params: { param1: val1, param2: val2, ... }
+                const cypherParams: { [alias: string]: any } = {};
+                Object.keys(sourceNode.mergeStrategy).map((dbAttr) => { cypherParams[sourceNode.mergeStrategy[dbAttr] + dbAttr] = eids[sourceNode.mergeStrategy[dbAttr]]; });
+                Object.keys(targetNode.mergeStrategy).map((dbAttr) => { cypherParams[targetNode.mergeStrategy[dbAttr] + dbAttr] = eids[targetNode.mergeStrategy[dbAttr]]; });
+                Object.keys(relStrat.createStrategy).map((dbAttr) => { cypherParams[relStrat.createStrategy[dbAttr] + dbAttr] = eids[relStrat.createStrategy[dbAttr]]; });
+
+                // Join with ", " (EZ)
+                const cypher: QueryData = {
+                    query:
+                        "MERGE (" + sourceNode.nodeAlias + ":" + sourceNode.nodeType + " {" + sourceMergeStrat.join(", ") + "})\n" +
+                        "MERGE (" + targetNode.nodeAlias + ":" + targetNode.nodeType + " {" + targetMergeStrat.join(", ") + "})\n " +
+                        "MERGE (" + sourceNode.nodeAlias + ")-[" + relStrat.relAlias + ":" + relStrat.relType + "]->(" + targetNode.nodeAlias + ") " +
+                        "ON CREATE SET " + relCreateStrat.join(", ")
+                    , params: cypherParams
+                };
+
+                // console.log(cypher);
+                queries.push(cypher);
+            }
+        });
+
+        await this.executeQueries(queries).catch(() => {
+            errors.throwError({
+                type: errors.DatabaseError.ERROR_DB_PERSIST,
+                reason: "Could not send data to DB. persistDataToDB(). This is most likely due to bad strategy definition",
+            });
+        });
+    }
+
+    /**
+     * Find the type of Node property
+     * @param nodeStrat
+     * @param propKey
+     */
+    private findNodeAttrType(nodeStrat: NodeStrategy, propKey: string): string {
+        return (this._models[nodeStrat.nodeType][propKey] as Neode.OtherNodeProperties).type;
+    }
+
+    /**
+     * Find the type of Relationship property
+     * @param relStrat
+     * @param propKey
+     */
+    private findRelationshipAttrType(relStrat: RelationshipStrategy, propKey: string): string {
+
+        // Search in the models the model that contain the relationship
+        const modelRel = Object.keys(this._models).filter((model) => {
+            return this.findRelationshipModels(model).filter((relKey) => {
+                return (this._models[model][relKey] as Neode.BaseRelationshipNodeProperties).relationship === relStrat.relType;
+            });
+        })[0];
+
+        const propType = (this._models[modelRel][relStrat.relAlias] as Neode.BaseRelationshipNodeProperties).properties[propKey];
+        return propType;
+    }
+
+    /**
+     * find the proper neo4j sanitiser for the incoming data as string
+     * @param type the type in question. <a src="https://github.com/adam-cowley/neode#property-types">Reference</a>
+     */
+    private findSanitiser(type: string): string {
+        let sanitiser = "";
+        switch (type) {
+            case "integer":
+                sanitiser = "toInteger";
+                break;
+            case "float": case "number":
+                sanitiser = "toFloat";
+                break;
+            default:
+                break;
+        }
+        return sanitiser;
     }
 
     private findRelationshipModels(modelKey: string): string[] {

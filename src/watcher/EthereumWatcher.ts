@@ -1,37 +1,13 @@
 import { ethers } from "ethers";
 import { BlockTag } from "ethers/providers";
-import { EventDescription, Networkish } from "ethers/utils";
+import { EventDescription } from "ethers/utils";
 import { v1 as neo4j } from "neo4j-driver";
-import { DatabaseConstructorType, Neo4JConstructor, ProviderEnum, QueryData } from "..";
-import { Database } from "../database/Database";
+import { Database, DatabaseConstructor } from "../database/Database";
 import { DatabaseFactory } from "../factory/DatabaseFactory";
-import { ContractCall, DataExtractionStrategies, defaultDataProcess, EventInfoDataStruct, FromData, NodeStrategy, PersistenceStrategies, RelationshipStrategy, Strategies, Strategy, Watcher } from "./Watcher";
-
-export interface ProviderConfig {
-    timeout?: number;
-    infura?: {
-        network?: Networkish,
-        projectId?: string
-    };
-    etherscan?: {
-        network?: Networkish,
-        api?: string
-    };
-    jsonrpc?: {
-        network: Networkish
-        url?: string,
-        username?: string,
-        password?: string,
-        allowInsecure?: boolean
-    };
-    web3?: {
-        host?: string
-    };
-    ipc?: {
-        path?: string;
-        network?: Networkish;
-    };
-}
+import * as errors from "../utils/error";
+import { ContractCall, DataExtractionStrategies, defaultDataProcess, FromData, Strategies, Strategy } from "../utils/strategy";
+import { DatabaseConstructorType, ProviderEnum } from "../utils/types";
+import { EventInfoDataStruct, ProviderConfig, Watcher } from "./Watcher";
 
 export default class EthereumWatcher extends Watcher {
     private _contractAddr: string;
@@ -43,7 +19,7 @@ export default class EthereumWatcher extends Watcher {
     private _exportDir: string;
     private _event: EventDescription;
     private _timeout: any;
-    private _dbType: Neo4JConstructor;
+    private _dbType: DatabaseConstructor;
     private _strategies: Strategies;
 
     /**
@@ -84,7 +60,7 @@ export default class EthereumWatcher extends Watcher {
      * @param {number} fromDate timestamp
      * @param {number} toDate timestamp
      */
-    public async watchEvents(eventName: string, fromDate: Date = undefined, toDate: Date = undefined) {
+    public async watchEvents(eventName: string, fromDate?: Date, toDate?: Date) {
 
         this.refreshDB();
 
@@ -113,7 +89,7 @@ export default class EthereumWatcher extends Watcher {
                     const upperBlock = latestInDB ? parseInt(latestInDB[0].get("result")) : undefined;
                     const lowerBlock = earliestInDB ? parseInt(earliestInDB[0].get("result")) : undefined;
 
-                    console.log(latestInDB, earliestInDB);
+                    // console.log(latestInDB, earliestInDB);
 
                     if (lowerBlock && upperBlock) {
 
@@ -139,12 +115,10 @@ export default class EthereumWatcher extends Watcher {
                             await this.getEvents(eventName, upperBlock, toBlock);
                         }
                     } else {
-                        console.log("Could not find block range...", fromBlock, toBlock, earliestInDB, latestInDB);
-                        this._clearDB = true;
-                        await this.getEvents(eventName, fromBlock, toBlock);
+                        throw new Error(("Could not find block range..." + fromBlock + " " + toBlock));
                     }
                 })
-                .catch(async (reason) => {
+                .catch(async (reason: Error) => {
                     console.log("Cache not loaded or corrupted, updating...");
                     this._clearDB = true;
                     await this.getEvents(eventName, fromBlock, toBlock);
@@ -152,10 +126,9 @@ export default class EthereumWatcher extends Watcher {
         }
 
         const endTime = new Date();
-        const elapsedTime = endTime.getTime() - startTime.getTime();
-        const elapsedSeconds = elapsedTime / 1000;
+        const elapsedMilli = endTime.getTime() - startTime.getTime();
+        const elapsedSeconds = elapsedMilli / 1000;
         const elapsedMinutes = elapsedSeconds / 60;
-        const elapsedMilli = (elapsedSeconds - Math.floor(elapsedSeconds)) * 1000;
 
         const roundMinutes = Math.trunc(elapsedMinutes);
         const roundSeconds = Math.trunc(elapsedSeconds - roundMinutes * 60);
@@ -198,8 +171,16 @@ export default class EthereumWatcher extends Watcher {
         if (logPart) {
             if (logPart.length === 0) { return []; }
             const result = await Promise.all(logPart.map((logEntry) => this.extractData(logEntry)))
-                .catch((err) => { console.error(err); });
-            return result ? result : undefined;
+                .catch(() => {
+                    errors.throwError({
+                        type: errors.WatcherError.ERROR_WATCHER_EXTRACT_DATA,
+                        reason: "Could not call extract data properly",
+                        params: {
+                            log: logPart,
+                        }
+                    });
+                });
+            return result || undefined;
         }
         return undefined;
     }
@@ -259,7 +240,7 @@ export default class EthereumWatcher extends Watcher {
             await this.sendToDB(log);
 
             logs = logs.concat(log);
-            start = end == tBlock ? end : end + 1;
+            start = (end === tBlock) ? end : end + 1;
             end = tBlock;
             steps += 1;
         }
@@ -273,14 +254,6 @@ export default class EthereumWatcher extends Watcher {
      */
     public setStrategies(strategies: Strategies) {
         this._strategies = strategies;
-    }
-
-    public setDataExtractionStrategy(DES: DataExtractionStrategies) {
-        this._strategies.DataExtractionStrategy = DES;
-    }
-
-    public setPersistenceStrategy(PS: PersistenceStrategies) {
-        this._strategies.PersistenceStrategy = PS;
     }
 
     /**
@@ -345,50 +318,8 @@ export default class EthereumWatcher extends Watcher {
      * @param eidss the processed data
      */
     private async sendToDB(eidss: EventInfoDataStruct[]) {
-
-        const queries: QueryData[] = [];
-        const PS: PersistenceStrategies = this._strategies.PersistenceStrategy;
-
-        const nodeStrats = (PS as any).NodeStrategy as { [iteration: number]: NodeStrategy };
-        const relStrats = (PS as any).RelationshipStrategy as { [iteration: number]: RelationshipStrategy };
-
-        eidss.forEach((eids) => {
-            for (const relItr of Object.keys(relStrats)) {
-                const relStrat = relStrats[parseInt(relItr)];
-
-                const sourceKey = Object.keys(nodeStrats).filter((itr) => nodeStrats[parseInt(itr)].nodeAlias == relStrat.source)[0];
-                const targetKey = Object.keys(nodeStrats).filter((itr) => nodeStrats[parseInt(itr)].nodeAlias == relStrat.target)[0];
-
-                const sourceNode = nodeStrats[parseInt(sourceKey)];
-                const targetNode = nodeStrats[parseInt(targetKey)];
-
-                const sourceMergeStrat = Object.keys(sourceNode.mergeStrategy).map((dbAttr) => dbAttr + ": {" + sourceNode.mergeStrategy[dbAttr] + dbAttr + "}");
-                const targetMergeStrat = Object.keys(targetNode.mergeStrategy).map((dbAttr) => dbAttr + ": {" + targetNode.mergeStrategy[dbAttr] + dbAttr + "}");
-                const relCreateStrat = Object.keys(relStrat.createStrategy).map((dbAttr) => relStrat.relAlias + "." + dbAttr + " = {" + relStrat.createStrategy[dbAttr] + dbAttr + "}");
-
-                const cypherParams: { [alias: string]: any } = {};
-                Object.keys(sourceNode.mergeStrategy).map((dbAttr) => { cypherParams[sourceNode.mergeStrategy[dbAttr] + dbAttr] = eids[sourceNode.mergeStrategy[dbAttr]]; });
-                Object.keys(targetNode.mergeStrategy).map((dbAttr) => { cypherParams[targetNode.mergeStrategy[dbAttr] + dbAttr] = eids[targetNode.mergeStrategy[dbAttr]]; });
-                Object.keys(relStrat.createStrategy).map((dbAttr) => { cypherParams[relStrat.createStrategy[dbAttr] + dbAttr] = eids[relStrat.createStrategy[dbAttr]]; });
-
-                const cypher = {
-                    query:
-                        "MERGE (" + sourceNode.nodeAlias + ":" + sourceNode.nodeType + " {" + sourceMergeStrat.join(", ") + "})\n" +
-                        "MERGE (" + targetNode.nodeAlias + ":" + targetNode.nodeType + " {" + targetMergeStrat.join(", ") + "})\n " +
-                        "MERGE (" + sourceNode.nodeAlias + ")-[" + relStrat.relAlias + ":" + relStrat.relType + "]->(" + targetNode.nodeAlias + ") " +
-                        "ON CREATE SET " + relCreateStrat.join(", ")
-                    , params: cypherParams
-                };
-
-                // console.log(cypher);
-                queries.push(cypher);
-            }
-        });
-
-        // console.log(queries);
-        await this._dbService.executeQueries(queries).catch((err) => { throw err; });
+        await this._dbService.persistDataToDB(eidss, this._strategies.PersistenceStrategy);
         await this.exportCSV();
-
         console.log("Database updated!");
     }
 
@@ -431,7 +362,7 @@ export default class EthereumWatcher extends Watcher {
                     s = (DES[i] as any)[strategy] as ContractCall;
                     const args = Object.keys(s.args).map((arg: string) => {
                         const argProcess = (s as ContractCall).args[arg];
-                        return argProcess ? argProcess(eids[arg]) : eids[arg];
+                        return argProcess ? argProcess(data[arg]) : data[arg];
                     });
                     const r = await this.contractCall(s.funcName, args);
 
@@ -452,7 +383,7 @@ export default class EthereumWatcher extends Watcher {
             eids[DES[i].propName] = result;
         }
 
-        console.log(logEntry, data, eids);
+        // console.log(logEntry, data, eids);
         return eids;
     }
 
@@ -461,14 +392,21 @@ export default class EthereumWatcher extends Watcher {
      * @param funcName method name
      * @param args method args
      */
-    private contractCall(funcName: string, args: any[]) {
+    private async contractCall(funcName: string, args: any[]) {
 
         const contractFuncs = this._contract.functions;
 
         if (!Object.keys(contractFuncs).includes(funcName)) { throw new Error("This contract does not contain function " + funcName); }
-        return contractFuncs[funcName](args)
-            .catch((err) => {
-                console.error("Could not retrive result of ContractCall: ", err);
+        return await contractFuncs[funcName].apply(null, args)
+            .catch(() => {
+                errors.throwError({
+                    type: errors.WatcherError.ERROR_WATCHER_CONTRACT_CALL,
+                    reason: "Could not call contract function",
+                    params: {
+                        methodName: funcName,
+                        methodArgs: args
+                    }
+                });
             });
     }
 
@@ -478,9 +416,18 @@ export default class EthereumWatcher extends Watcher {
      * @param init unformatted/raw data
      */
     private async processData(strategy: Strategy, init: any) {
-        const process = strategy.process ? strategy.process : defaultDataProcess;
+        const process = strategy.process || defaultDataProcess;
         const contractFuncs = this._contract.functions;
-        return await process(init, contractFuncs);
+        return await process(init, contractFuncs).catch(() => {
+            errors.throwError({
+                type: errors.WatcherError.ERROR_WATCHER_PROCESS_DATA,
+                reason: "Could not apply Process function",
+                params: {
+                    usingStrategy: strategy,
+                    initValue: init
+                }
+            });
+        });
     }
 
     /**
@@ -498,7 +445,7 @@ export default class EthereumWatcher extends Watcher {
             toBlock,
             address: this._contractAddr,
             topics: [this._event.topic]
-        }).catch(() => { });
+        }).catch(() => { }); // Do nothing in case of error
 
         return logs ? await this.getLogData(logs) : undefined;
     }

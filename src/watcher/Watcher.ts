@@ -1,72 +1,47 @@
-import { ethers } from "ethers";
 import { BlockTag } from "ethers/providers";
-import { ContractType, ProviderType } from "..";
+import { Networkish } from "ethers/utils";
 import { Database } from "../database/Database";
+import { Strategies } from "../utils/strategy";
+import { ContractType, DatabaseConstructorType, ProviderEnum, ProviderType, WatcherEnum } from "../utils/types";
 
-export async function defaultDataProcess(data: any, contractFunctions: Bucket<ethers.ContractFunction>) {
-    return data.toString();
+export interface WatcherConstructor {
+    type: WatcherEnum;
+    provider: ProviderEnum;
+    clearDB: boolean;
+    address: string;
+    db: DatabaseConstructorType;
+    abi: string;
+    providerConf: object;
+    exportDir: string;
+}
+
+export interface ProviderConfig {
+    timeout?: number;
+    infura?: {
+        network?: Networkish,
+        projectId?: string
+    };
+    etherscan?: {
+        network?: Networkish,
+        api?: string
+    };
+    jsonrpc?: {
+        network: Networkish
+        url?: string,
+        username?: string,
+        password?: string,
+        allowInsecure?: boolean
+    };
+    web3?: {
+        host?: string
+    };
+    ipc?: {
+        path?: string;
+        network?: Networkish;
+    };
 }
 
 export interface EventInfoDataStruct { [property: string]: any; }
-
-export declare interface Strategies {
-    DataExtractionStrategy: DataExtractionStrategies;
-    PersistenceStrategy: PersistenceStrategies;
-}
-
-export interface DataExtractionStrategies { [iteration: number]: DataExtractionStrategy; }
-
-export declare interface DataExtractionStrategy {
-    propName: string;
-    strategy: ContractCall | FromData;
-}
-
-export interface Strategy {
-    process?: Process;
-}
-
-export interface ContractCall extends Strategy {
-    funcName: string;
-    args: { [eidsAttr: string]: CallbackFunction };
-    resAttr?: string;
-}
-
-export declare interface FromData extends Strategy {
-    attrName: string;
-}
-
-interface Bucket<T> {
-    [name: string]: T;
-}
-
-type CallbackFunction = (data: any) => any;
-
-export type Process = (data: any, contractFunctions: Bucket<ethers.ContractFunction>) => Promise<any>;
-
-export declare interface PersistenceStrategies {
-    NodeStrategies: { [iteration: number]: NodeStrategy };
-    RelationshipStrategies: { [iteration: number]: RelationshipStrategy };
-}
-
-export declare interface RelationshipStrategy {
-    relType: string;
-    relAlias: string;
-    direction: string;
-    source: string;
-    target: string;
-    createStrategy: CreateStrategy;
-}
-
-export declare interface NodeStrategy {
-    nodeType: string;
-    nodeAlias: string;
-    mergeStrategy: MergeStrategy;
-    createStrategy: CreateStrategy;
-}
-
-// For each dbProp, use an entry from the extracted data struct
-export interface MergeStrategy { [dbProp: string]: string; }
-export interface CreateStrategy { [dbProp: string]: string; }
 
 export default abstract class Watcher {
     public provider: ProviderType;
@@ -111,9 +86,9 @@ export default abstract class Watcher {
     public abstract setStrategies(strategies: Strategies): void;
 
     /**
-    * Tell the Watcher to clear the database before the next operation
-    * @param clearFlag
-    */
+     * Tell the Watcher to clear the database before the next operation
+     * @param clearFlag
+     */
     public abstract setClearDBFlag(clearFlag: boolean): void;
 }
 

@@ -1,5 +1,6 @@
-import { WatcherConstructor, WatcherEnum } from "..";
+import { WatcherEnum } from "../utils/types";
 import { EthereumWatcher } from "../watcher/EthereumWatcher";
+import { WatcherConstructor } from "../watcher/Watcher";
 
 export default class WatcherFactory {
 

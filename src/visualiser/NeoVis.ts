@@ -2,8 +2,9 @@ import { Visualiser } from "./Visualiser";
 
 import { v1 as neo4j } from "neo4j-driver";
 import { NeoVis as NeoViz, NeoVisConfig, VisualisationStrategy } from "neovis-ts";
-
-import { CentralityAlgorithmEnum, CentralityAlgorithmParam, CommunityDetectionAlgoritmEnum, CommunityDetectionParam, Neo4JConstructor, PathFindingAlgorithmEnum, PathFindingAlgorithmParam, QueryData } from "..";
+import { Neo4JConstructor } from "../database/Neo4J";
+import { CentralityAlgorithmEnum, CentralityAlgorithmParam, CommunityDetectionAlgoritmEnum, CommunityDetectionParam, PathFindingAlgorithmEnum, PathFindingAlgorithmParam } from "../utils/graph";
+import { QueryData } from "../utils/types";
 
 export default class NeoVis extends Visualiser {
     private _renderer: NeoViz;
@@ -35,7 +36,8 @@ export default class NeoVis extends Visualiser {
                     arrows: {
                         to: neovis.arrows
                     }
-                }
+                },
+                layout: neovis.layout
             },
 
             initial_cypher: "MATCH (n)-[r]->(m)\n" +
@@ -538,7 +540,7 @@ export default class NeoVis extends Visualiser {
             }
         }
 
-        const limitString = (queryLimit && queryLimit == 0) ? "" : " LIMIT " + this._queryLimit;
+        const limitString = (queryLimit && queryLimit === 0) ? "" : " LIMIT " + this._queryLimit;
         cypher = [cypher, this._config.initial_cypher.replace("LIMIT 25", limitString)].join("\n");
         console.log(cypher);
         this._renderer.renderWithCypher(cypher);
@@ -554,7 +556,7 @@ export default class NeoVis extends Visualiser {
             return;
         }
 
-        const limitString = (queryLimit && queryLimit == 0) ? "" : " LIMIT " + this._queryLimit;
+        const limitString = (queryLimit && queryLimit === 0) ? "" : " LIMIT " + this._queryLimit;
         let cypher = querydata.query;
         if (querydata.params) {
             for (const param of Object.keys(querydata.params)) {
@@ -582,58 +584,6 @@ export default class NeoVis extends Visualiser {
     public async clear() {
         const cypher = "MATCH (n) REMOVE " + this._extraProps.map((prop) => "n." + prop).join(", ");
         this.displayWithCypher({ query: cypher });
-    }
-
-    /**
-     * Display relationships from certain node AND/OR to certain node
-     * @param {string} nodeAddress
-     * @param {boolean} from
-     * @param {boolean} to
-     */
-    public filterNodesByAddress(nodeAddress: string, from: boolean = false, to: boolean = false) {
-        if (!from && !to) {
-            this.focusOnNode(nodeAddress);
-        } else {
-            let cypher = "MATCH (n:Account)-[r:TRANSFER]->(m:Account) WHERE false";
-            if (from) {
-                cypher += " OR n.address = '" + nodeAddress + "'";
-            }
-
-            if (to) {
-                cypher += " OR m.address = '" + nodeAddress + "'";
-            }
-
-            cypher += " RETURN n,r,m";
-
-            console.log(cypher);
-            this.displayWithCypher({ query: cypher }, this._queryLimit);
-        }
-    }
-
-    /**
-     * Filter display by dates
-     * @param {string} nodeAddress per address
-     * @param {Date} fromDate
-     * @param {Date} toDate
-     */
-    public filterNodesByDates(fromDate: Date, toDate: Date, nodeAddress: string = undefined) {
-
-        if (fromDate.getTime() > toDate.getTime()) {
-            throw new Error(("fromDate > toDate"));
-        }
-
-        const fDate = neo4j.types.DateTime.fromStandardDate(fromDate);
-        const tDate = neo4j.types.DateTime.fromStandardDate(toDate);
-
-        let cypher = "MATCH (n)-[r:TRANSFER]->(m) WHERE r.date >= '{fromDate}' AND r.date <= '{toDate}'";
-
-        if (nodeAddress) {
-            cypher += " AND (n.address = '" + nodeAddress + "'" + " OR m.address = '" + nodeAddress + "')";
-        }
-
-        cypher += " RETURN n,r,m";
-
-        this.displayWithCypher({ query: cypher, params: { fromDate: fDate, toDate: tDate } }, this._queryLimit);
     }
 
     /**

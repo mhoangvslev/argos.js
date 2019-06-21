@@ -1,4 +1,15 @@
-import { DatabaseModels, QueryData } from "..";
+import * as Neode from "neode";
+import { DatabaseModels, EventInfoDataStruct } from "../index";
+import { PersistenceStrategies } from "../utils/strategy";
+import { QueryData } from "../utils/types";
+
+export interface DatabaseConstructor {
+    username: string;
+    password: string;
+    model: DatabaseModels;
+}
+
+export interface DatabaseModels { [alias: string]: Neode.SchemaObject; }
 
 export default abstract class Database {
 
@@ -33,7 +44,7 @@ export default abstract class Database {
     /**
      * Delete all entry in the database
      */
-    public abstract dbClearAll(): void;
+    public abstract dbClearAll(): Promise<void>;
 
     /**
      * Tell the database to execute a query
@@ -52,6 +63,23 @@ export default abstract class Database {
     public abstract exportCSV(fileName: string): Promise<any>;
 
     public abstract importCSV(fileName: string): Promise<any>;
+
+    /**
+     * Prepare queries and batch-persist them to DB
+     * @param eidss the extracted data
+     * @param PS the persistence strategy
+     */
+    public abstract persistDataToDB(eidss: EventInfoDataStruct[], PS: PersistenceStrategies): Promise<void>;
+
+    /**
+     * Get all nodes' type
+     */
+    public abstract getNodeTypes(): string[];
+
+    /**
+     * Get all relationships' type
+     */
+    public abstract getRelTypes(): string[];
 
 }
 
