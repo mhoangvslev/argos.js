@@ -174,7 +174,7 @@ export default class EthereumWatcher extends Watcher {
                 .catch(() => {
                     errors.throwError({
                         type: errors.WatcherError.ERROR_WATCHER_EXTRACT_DATA,
-                        reason: "Could not call extract data properly",
+                        reason: "Could not call extract data properly. This mostly due to the incoherence between DB Model and PersistenceStrategy",
                         params: {
                             log: logPart,
                         }

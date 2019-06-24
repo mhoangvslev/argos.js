@@ -22,7 +22,7 @@ export interface IErrorMessage {
 export function throwError(em: IErrorMessage) {
     const error = new Error();
     error.name = em.type;
-    error.message = em.reason
+    error.message = em.reason + "\n"
         + "params: " + JSON.stringify(em.params);
     throw error;
 }

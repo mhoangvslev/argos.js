@@ -366,7 +366,9 @@ export default class Neo4J extends Database {
      * @param propKey
      */
     private findNodeAttrType(nodeStrat: NodeStrategy, propKey: string): string {
-        return (this._models[nodeStrat.nodeType][propKey] as Neode.OtherNodeProperties).type;
+        const prop: Neode.OtherNodeProperties = this._models[nodeStrat.nodeType][propKey] as Neode.OtherNodeProperties;
+        // console.log(nodeStrat.nodeType, propKey);
+        return prop.type;
     }
 
     /**
