@@ -211,8 +211,8 @@ export default class Neo4J extends Database {
                     }
                 }).catch(() => {
                     errors.throwError({
-                        type: errors.DatabaseError.ERROR_DB_IMPORT,
-                        reason: "Could not export fileName" + "_rel_" + relationshipProp + ".csv"
+                        type: errors.DatabaseError.ERROR_DB_EXPORT,
+                        reason: "Could not export " + fileName + "_nds_" + relationshipProp + ".csv"
                     });
                 });
 
@@ -227,8 +227,8 @@ export default class Neo4J extends Database {
                         }
                     }).catch(() => {
                         errors.throwError({
-                            type: errors.DatabaseError.ERROR_DB_IMPORT,
-                            reason: "Could not export fileName" + "_nds_" + relationshipProp + ".csv"
+                            type: errors.DatabaseError.ERROR_DB_EXPORT,
+                            reason: "Could not export " + fileName + "_nds_" + relationshipProp + ".csv"
                         });
                     });
                 }
@@ -269,7 +269,7 @@ export default class Neo4J extends Database {
                 }).catch(() => {
                     errors.throwError({
                         type: errors.DatabaseError.ERROR_DB_IMPORT,
-                        reason: "Could not import fileName" + "_rel_" + relationshipProp + ".csv"
+                        reason: "Could not import " + fileName + "_nds_" + relationshipProp + ".csv"
                     });
                 });
 
@@ -282,7 +282,7 @@ export default class Neo4J extends Database {
                     }).catch(() => {
                         errors.throwError({
                             type: errors.DatabaseError.ERROR_DB_IMPORT,
-                            reason: "Could not import fileName" + "_nds_" + relationshipProp + ".csv"
+                            reason: "Could not import " + fileName + "_nds_" + relationshipProp + ".csv"
                         });
                     });
                 }

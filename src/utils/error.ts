@@ -8,7 +8,8 @@ export const enum WatcherError {
 export const enum DatabaseError {
     ERROR_DB_QUERY = "ERROR_DB_QUERY",
     ERROR_DB_IMPORT = "ERROR_DB_IMPORT",
-    ERROR_DB_PERSIST = "ERROR_DB_PERSIST"
+    ERROR_DB_PERSIST = "ERROR_DB_PERSIST",
+    ERROR_DB_EXPORT = "ERROR_DB_EXPORT"
 }
 
 export type ArgosError = WatcherError | DatabaseError;
