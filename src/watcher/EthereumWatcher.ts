@@ -1,5 +1,4 @@
 import { ethers } from "ethers";
-import { BlockTag } from "ethers/providers";
 import { EventDescription } from "ethers/utils";
 import { v1 as neo4j } from "neo4j-driver";
 import { Database, DatabaseConstructor } from "../database/Database";
@@ -64,8 +63,8 @@ export default class EthereumWatcher extends Watcher {
 
         this.refreshDB();
 
-        const fromBlock: BlockTag = fromDate ? await this.timeToBlock(fromDate) : 0;
-        const toBlock: BlockTag = toDate ? await this.timeToBlock(toDate) : await this._provider.getBlockNumber();
+        const fromBlock: number = fromDate ? await this.timeToBlock(fromDate) : 0;
+        const toBlock: number = toDate ? await this.timeToBlock(toDate) : await this._provider.getBlockNumber();
 
         this._event = this._contract.interface.events[eventName];
 
@@ -138,7 +137,7 @@ export default class EthereumWatcher extends Watcher {
     }
 
     /**
-     * Convert timestimp to blocknumber
+     * Convert timestamp to blocknumber
      * @param {Date} date
      */
     public async timeToBlock(date: Date): Promise<number> {
@@ -168,21 +167,24 @@ export default class EthereumWatcher extends Watcher {
      * @returns { EventInfoDataStruct } the required information to build a db node
      */
     public async getLogData(logPart: ethers.providers.Log[]): Promise<EventInfoDataStruct[]> {
+        let result;
         if (logPart) {
             if (logPart.length === 0) { return []; }
-            const result = await Promise.all(logPart.map((logEntry) => this.extractData(logEntry)))
-                .catch(() => {
+            await Promise.all(logPart.map(async (logEntry) => this.extractData(logEntry)))
+                .then((value) => { result = value; })
+                .catch((error) => {
                     errors.throwError({
                         type: errors.WatcherError.ERROR_WATCHER_EXTRACT_DATA,
-                        reason: "Could not call extract data properly. This mostly due to the incoherence between DB Model and PersistenceStrategy",
+                        reason: "Could not call extract data properly.\n" +
+                            "This mostly due to the incoherence between DB Model and PersistenceStrategy. \n" +
+                            "You also might want to reduce the blockrange due to the provider's restrictions." + error,
                         params: {
-                            log: logPart,
+                            logSize: logPart.length,
                         }
                     });
                 });
-            return result || undefined;
         }
-        return undefined;
+        return result;
     }
 
     /**
@@ -191,26 +193,20 @@ export default class EthereumWatcher extends Watcher {
      * @param {number} fromBlock
      * @param {number} toBlock
      */
-    public async getEvents(eventName: string, fromBlock: BlockTag, toBlock: BlockTag): Promise<void> {
+    public async getEvents(eventName: string, fromBlock: number, toBlock: number): Promise<void> {
 
         // Clear DB first if requested
         if (this._clearDB) {
             await this._dbService.dbClearAll();
         }
 
-        const latestBlock = await this._provider.getBlockNumber();
-        const tBlock: number = toBlock === "latest" ? latestBlock : (toBlock as number);
-        const fBlock: number = fromBlock === "earliest" ? 0 : (fromBlock as number);
-
         let logs: EventInfoDataStruct[] = [];
 
         const self = this;
 
-        console.log("Latest block in blockchain is #" + tBlock);
-
         // Start serial tasks
-        let start = fBlock;
-        let end = tBlock;
+        let start = fromBlock;
+        let end = toBlock;
 
         let steps = 0;
 
@@ -223,8 +219,10 @@ export default class EthereumWatcher extends Watcher {
             // Devide the batch by 2 until the right amount is found
             while (log === undefined) {
                 if (start === end) {
-                    throw new Error(("Too many events in 1 blocks!"));
-                    // break;
+                    errors.throwError({
+                        type: errors.WatcherError.ERROR_WATCHER_GETEVENTS,
+                        reason: "Too many events in 1 block! ",
+                    });
                 }
 
                 end = start + Math.floor((end - start) / 2);
@@ -233,15 +231,22 @@ export default class EthereumWatcher extends Watcher {
 
                 const elapsedTime = new Date().getTime() - startTime.getTime();
                 if (this._timeout > 0 && elapsedTime > this._timeout) {
-                    throw new Error(("timeout after " + elapsedTime + " ms"));
+                    errors.throwError({
+                        type: errors.WatcherError.ERROR_WATCHER_TIMEOUT,
+                        reason: "Timeout while getting events.",
+                        params: {
+                            elapsedTime: elapsedTime + " ms",
+                            timeoutLimit: this._timeout + " ms"
+                        }
+                    });
                 }
             }
 
             await this.sendToDB(log);
 
             logs = logs.concat(log);
-            start = (end === tBlock) ? end : end + 1;
-            end = tBlock;
+            start = (end === toBlock) ? end : end + 1;
+            end = toBlock;
             steps += 1;
         }
 
@@ -281,7 +286,7 @@ export default class EthereumWatcher extends Watcher {
 
         switch (providerType) {
             case ProviderEnum.defaultProvider: default:
-                return ethers.getDefaultProvider();
+                return ethers.getDefaultProvider(config.default.network);
 
             case ProviderEnum.EtherscanProvider:
                 return new ethers.providers.EtherscanProvider(ethers.utils.getNetwork(config.etherscan.network), config.etherscan.api);
@@ -392,22 +397,26 @@ export default class EthereumWatcher extends Watcher {
      * @param funcName method name
      * @param args method args
      */
-    private async contractCall(funcName: string, args: any[]) {
+    private async contractCall(funcName: string, args: any[]): Promise<any> {
 
         const contractFuncs = this._contract.functions;
 
         if (!Object.keys(contractFuncs).includes(funcName)) { throw new Error("This contract does not contain function " + funcName); }
-        return await contractFuncs[funcName].apply(null, args)
-            .catch(() => {
+
+        let result;
+        await (contractFuncs[funcName].apply(null, args) as Promise<any>)
+            .then((value) => { result = value; })
+            .catch((error) => {
                 errors.throwError({
                     type: errors.WatcherError.ERROR_WATCHER_CONTRACT_CALL,
-                    reason: "Could not call contract function",
+                    reason: "Could not call contract function. " + error,
                     params: {
                         methodName: funcName,
                         methodArgs: args
                     }
                 });
             });
+        return result;
     }
 
     /**
@@ -415,19 +424,23 @@ export default class EthereumWatcher extends Watcher {
      * @param strategy DES strategy
      * @param init unformatted/raw data
      */
-    private async processData(strategy: Strategy, init: any) {
+    private async processData(strategy: Strategy, init: any): Promise<any> {
         const process = strategy.process || defaultDataProcess;
         const contractFuncs = this._contract.functions;
-        return await process(init, contractFuncs).catch(() => {
-            errors.throwError({
-                type: errors.WatcherError.ERROR_WATCHER_PROCESS_DATA,
-                reason: "Could not apply Process function",
-                params: {
-                    usingStrategy: strategy,
-                    initValue: init
-                }
+        let result;
+        await process(init, contractFuncs)
+            .then((value) => { result = value; })
+            .catch((error) => {
+                errors.throwError({
+                    type: errors.WatcherError.ERROR_WATCHER_PROCESS_DATA,
+                    reason: "Could not apply Process function. " + error,
+                    params: {
+                        usingStrategy: strategy,
+                        initValue: init
+                    }
+                });
             });
-        });
+        return result;
     }
 
     /**
@@ -447,7 +460,19 @@ export default class EthereumWatcher extends Watcher {
             topics: [this._event.topic]
         }).catch(() => { }); // Do nothing in case of error
 
-        return logs ? await this.getLogData(logs) : undefined;
+        let result: EventInfoDataStruct[];
+
+        if (logs) {
+            await this.getLogData(logs)
+                .then((eids) => { result = eids; })
+                .catch((error) => {
+                    errors.throwError({
+                        type: errors.WatcherError.ERROR_WATCHER_GETLOGDATA,
+                        reason: error
+                    });
+                });
+        }
+        return result;
     }
 }
 

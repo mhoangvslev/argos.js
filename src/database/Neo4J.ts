@@ -122,15 +122,16 @@ export default class Neo4J extends Database {
         const cypher: QueryData = {
             query: "MATCH (n) DETACH DELETE n"
         };
-        await this.executeQuery(cypher).catch((err) =>
+        await this.executeQuery(cypher);
+        /*.catch((err) =>
             errors.throwError({
                 type: errors.DatabaseError.ERROR_DB_QUERY,
-                reason: "Could not clear database",
+                reason: "Could not clear database \n" + err,
                 params: {
                     query: cypher,
                 }
             })
-        );
+        );*/
     }
 
     /**
@@ -140,16 +141,13 @@ export default class Neo4J extends Database {
      */
     public async executeQuery(queryData: QueryData): Promise<Record[]> {
         await this.dbReconnect();
-
-        console.log(queryData);
-
         let result;
         await this._dbInstance.cypher(queryData.query, queryData.params)
             .then((statementResult) => { result = statementResult.records; })
             .catch((err) =>
                 errors.throwError({
                     type: errors.DatabaseError.ERROR_DB_QUERY,
-                    reason: "Could not execute query",
+                    reason: "Could not execute query. \n" + err,
                     params: {
                         query: queryData
                     }
@@ -165,13 +163,17 @@ export default class Neo4J extends Database {
      */
     public async executeQueries(queries: QueryData[]): Promise<any> {
         await this.dbReconnect();
-        let result: any;
+        let result;
+
         await this._dbInstance.batch(queries)
             .then((records) => { result = records; })
             .catch((err) =>
                 errors.throwError({
                     type: errors.DatabaseError.ERROR_DB_QUERY,
-                    reason: "Could not batch-execute queries"
+                    reason: "Could not batch-execute queries" + err,
+                    params: {
+                        queries
+                    }
                 })
             );
         return result;
@@ -209,11 +211,6 @@ export default class Neo4J extends Database {
                         file: fileName + "_rel_" + relationshipProp + ".csv",
                         config: null
                     }
-                }).catch(() => {
-                    errors.throwError({
-                        type: errors.DatabaseError.ERROR_DB_EXPORT,
-                        reason: "Could not export " + fileName + "_nds_" + relationshipProp + ".csv"
-                    });
                 });
 
                 if (attributes.length > 1) {
@@ -225,11 +222,6 @@ export default class Neo4J extends Database {
                             file: fileName + "_nds_" + relationshipProp + ".csv",
                             config: null
                         }
-                    }).catch(() => {
-                        errors.throwError({
-                            type: errors.DatabaseError.ERROR_DB_EXPORT,
-                            reason: "Could not export " + fileName + "_nds_" + relationshipProp + ".csv"
-                        });
                     });
                 }
             }
@@ -266,11 +258,6 @@ export default class Neo4J extends Database {
                         "MERGE (src:" + relTargetType + " {" + primaryAttribut + ": row.source})\n" +
                         "MERGE (tgt:" + relTargetType + " {" + primaryAttribut + ": row.target})\n" +
                         "MERGE (src)-[r:" + relType + "]->(tgt) ON CREATE SET " + relPropsProj.join(", ")
-                }).catch(() => {
-                    errors.throwError({
-                        type: errors.DatabaseError.ERROR_DB_IMPORT,
-                        reason: "Could not import " + fileName + "_nds_" + relationshipProp + ".csv"
-                    });
                 });
 
                 if (attributes.length > 1) {
@@ -279,11 +266,6 @@ export default class Neo4J extends Database {
                         query:
                             "LOAD CSV WITH HEADERS FROM 'file:///" + fileName + "_nds_" + relationshipProp + ".csv' AS row\n" +
                             "MERGE (n:" + relTargetType + " {" + attributeProj.join(", ") + "})\n"
-                    }).catch(() => {
-                        errors.throwError({
-                            type: errors.DatabaseError.ERROR_DB_IMPORT,
-                            reason: "Could not import " + fileName + "_nds_" + relationshipProp + ".csv"
-                        });
                     });
                 }
             }
@@ -302,7 +284,7 @@ export default class Neo4J extends Database {
         const relStrats = (PS as any).RelationshipStrategy as { [iteration: number]: RelationshipStrategy };
 
         eidss.forEach((eids) => {
-            for (const relItr of Object.keys(relStrats)) {
+            Object.keys(relStrats).forEach((relItr) => {
                 const relStrat = relStrats[parseInt(relItr)];
 
                 const sourceKey = Object.keys(nodeStrats).filter((itr) => nodeStrats[parseInt(itr)].nodeAlias === relStrat.source)[0];
@@ -349,15 +331,10 @@ export default class Neo4J extends Database {
 
                 // console.log(cypher);
                 queries.push(cypher);
-            }
-        });
-
-        await this.executeQueries(queries).catch(() => {
-            errors.throwError({
-                type: errors.DatabaseError.ERROR_DB_PERSIST,
-                reason: "Could not send data to DB. persistDataToDB(). This is most likely due to bad strategy definition",
             });
         });
+
+        await this.executeQueries(queries);
     }
 
     /**

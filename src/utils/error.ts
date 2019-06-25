@@ -2,7 +2,10 @@
 export const enum WatcherError {
     ERROR_WATCHER_CONTRACT_CALL = "ERROR_WATCHER_CONTRACT_CALL",
     ERROR_WATCHER_PROCESS_DATA = "ERROR_WATCHER_PROCESS_DATA",
-    ERROR_WATCHER_EXTRACT_DATA = "ERROR_WATCHER_EXTRACT_DATA"
+    ERROR_WATCHER_EXTRACT_DATA = "ERROR_WATCHER_EXTRACT_DATA",
+    ERROR_WATCHER_TIMEOUT = "ERROR_WATCHER_TIMEOUT",
+    ERROR_WATCHER_GETLOGDATA = "ERROR_WATCHER_GETLOGDATA",
+    ERROR_WATCHER_GETEVENTS = "ERROR_WATCHER_GETEVENTS"
 }
 
 export const enum DatabaseError {
@@ -23,7 +26,7 @@ export interface IErrorMessage {
 export function throwError(em: IErrorMessage) {
     const error = new Error();
     error.name = em.type;
-    error.message = em.reason + "\n"
-        + "params: " + JSON.stringify(em.params);
+    error.message = em.reason + "\n";
+    console.error(em.params);
     throw error;
 }

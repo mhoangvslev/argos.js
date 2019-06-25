@@ -1,5 +1,4 @@
-import { BlockTag } from "ethers/providers";
-import { Networkish } from "ethers/utils";
+import { Network, Networkish } from "ethers/utils";
 import { Database } from "../database/Database";
 import { Strategies } from "../utils/strategy";
 import { ContractType, DatabaseConstructorType, ProviderEnum, ProviderType, WatcherEnum } from "../utils/types";
@@ -16,6 +15,9 @@ export interface WatcherConstructor {
 }
 
 export interface ProviderConfig {
+    default?: {
+        network?: string | Network
+    };
     timeout?: number;
     infura?: {
         network?: Networkish,
@@ -58,11 +60,11 @@ export default abstract class Watcher {
     /**
      * Get events from log
      * @param {string} eventName the event name to watch
-     * @param {BlockTag} fromBlock the start block, default is 0
-     * @param {BlockTag} toBlock  the ending block, default is 'lastest'
+     * @param {number} fromBlock the start block, default is 0
+     * @param {number} toBlock  the ending block, default is 'lastest'
      * @param {number} nbTasks how many batches required to process the log
      */
-    public abstract getEvents(eventName: string, fromBlock: BlockTag, toBlock: BlockTag): Promise<void>;
+    public abstract getEvents(eventName: string, fromBlock: number, toBlock: number): Promise<void>;
 
     /**
      * Watch event with particular model
@@ -74,7 +76,7 @@ export default abstract class Watcher {
     public abstract watchEvents(eventName: string, fromDate: Date, toDate: Date): Promise<void>;
 
     /**
-     * Convert timestimp to blocknumber
+     * Convert timestamp to blocknumber
      * @param {Date} date
      */
     public abstract timeToBlock(date: Date): Promise<number>;
