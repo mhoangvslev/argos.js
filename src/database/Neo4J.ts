@@ -319,12 +319,28 @@ export default class Neo4J extends Database {
                 Object.keys(targetNode.mergeStrategy).map((dbAttr) => { cypherParams[targetNode.mergeStrategy[dbAttr] + dbAttr] = eids[targetNode.mergeStrategy[dbAttr]]; });
                 Object.keys(relStrat.createStrategy).map((dbAttr) => { cypherParams[relStrat.createStrategy[dbAttr] + dbAttr] = eids[relStrat.createStrategy[dbAttr]]; });
 
+                // Handle direction
+                let directionFrom = "-";
+                let directionTo = "-";
+                switch (relStrat.direction) {
+                    case "in":
+                        directionFrom = "<-";
+                        break;
+                    case "out": default:
+                        directionTo = "->";
+                        break;
+                    case "both":
+                        directionFrom = "<-";
+                        directionTo = "->";
+                        break;
+                }
+
                 // Join with ", " (EZ)
                 const cypher: QueryData = {
                     query:
                         "MERGE (" + sourceNode.nodeAlias + ":" + sourceNode.nodeType + " {" + sourceMergeStrat.join(", ") + "})\n" +
                         "MERGE (" + targetNode.nodeAlias + ":" + targetNode.nodeType + " {" + targetMergeStrat.join(", ") + "})\n " +
-                        "MERGE (" + sourceNode.nodeAlias + ")-[" + relStrat.relAlias + ":" + relStrat.relType + "]->(" + targetNode.nodeAlias + ") " +
+                        "MERGE (" + sourceNode.nodeAlias + ")" + directionFrom + "[" + relStrat.relAlias + ":" + relStrat.relType + "]" + directionTo + "(" + targetNode.nodeAlias + ") " +
                         "ON CREATE SET " + relCreateStrat.join(", ")
                     , params: cypherParams
                 };

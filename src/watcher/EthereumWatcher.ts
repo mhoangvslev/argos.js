@@ -114,13 +114,26 @@ export default class EthereumWatcher extends Watcher {
                             await this.getEvents(eventName, upperBlock, toBlock);
                         }
                     } else {
-                        throw new Error(("Could not find block range..." + fromBlock + " " + toBlock));
+                        errors.throwError({
+                            type: errors.WatcherError.ERROR_WATCHER_WATCHEVENTS,
+                            reason: "Could not find block range...",
+                            params: {
+                                fromBlock,
+                                toBlock
+                            }
+                        });
                     }
                 })
-                .catch(async (reason: Error) => {
-                    console.log("Cache not loaded or corrupted, updating...");
-                    this._clearDB = true;
-                    await this.getEvents(eventName, fromBlock, toBlock);
+                .catch(async (error: Error) => {
+                    switch (error.name) {
+                        case errors.WatcherError.ERROR_WATCHER_WATCHEVENTS:
+                            console.log("Cache not loaded or corrupted, updating...");
+                            this._clearDB = true;
+                            await this.getEvents(eventName, fromBlock, toBlock);
+                            break;
+                        default:
+                            throw error;
+                    }
                 });
         }
 
@@ -172,12 +185,13 @@ export default class EthereumWatcher extends Watcher {
             if (logPart.length === 0) { return []; }
             await Promise.all(logPart.map(async (logEntry) => this.extractData(logEntry)))
                 .then((value) => { result = value; })
-                .catch((error) => {
+                .catch((reason) => {
+                    console.error(reason);
                     errors.throwError({
                         type: errors.WatcherError.ERROR_WATCHER_EXTRACT_DATA,
                         reason: "Could not call extract data properly.\n" +
                             "This mostly due to the incoherence between DB Model and PersistenceStrategy. \n" +
-                            "You also might want to reduce the blockrange due to the provider's restrictions." + error,
+                            "You also might want to reduce the blockrange due to the provider's restrictions.",
                         params: {
                             logSize: logPart.length,
                         }
@@ -200,57 +214,63 @@ export default class EthereumWatcher extends Watcher {
             await this._dbService.dbClearAll();
         }
 
-        let logs: EventInfoDataStruct[] = [];
-
         const self = this;
 
         // Start serial tasks
         let start = fromBlock;
         let end = toBlock;
-
+        let nbEvents = 0;
         let steps = 0;
+        let log: EventInfoDataStruct[];
+        const startTime = new Date();
 
-        while (start !== end) {
+        // Devide the batch by 2 until the right amount is found
+        while (log === undefined || start !== end) {
+            await self.getEventPatch(eventName, start, end)
+                .then((result) => log = result)
+                .catch((reason: Error) => {
 
-            const startTime = new Date();
+                    // Stops if something else than ERROR_WATCHER_PROVIDER_GETLOGS
+                    if (reason.name !== errors.WatcherError.ERROR_WATCHER_PROVIDER_GETLOGS) {
+                        throw new Error("LELEELEL");
+                    } else {
 
-            let log = await self.getEventPatch(eventName, start, end);
+                        // Lower the blockrange
+                        end = start + Math.floor((end - start) / 2);
 
-            // Devide the batch by 2 until the right amount is found
-            while (log === undefined) {
-                if (start === end) {
-                    errors.throwError({
-                        type: errors.WatcherError.ERROR_WATCHER_GETEVENTS,
-                        reason: "Too many events in 1 block! ",
-                    });
-                }
-
-                end = start + Math.floor((end - start) / 2);
-                log = await self.getEventPatch(eventName, start, end);
-                steps += 1;
-
-                const elapsedTime = new Date().getTime() - startTime.getTime();
-                if (this._timeout > 0 && elapsedTime > this._timeout) {
-                    errors.throwError({
-                        type: errors.WatcherError.ERROR_WATCHER_TIMEOUT,
-                        reason: "Timeout while getting events.",
-                        params: {
-                            elapsedTime: elapsedTime + " ms",
-                            timeoutLimit: this._timeout + " ms"
+                        // Stops if too many events in 1 block
+                        if (start === end) {
+                            errors.throwError({
+                                type: errors.WatcherError.ERROR_WATCHER_GETEVENTS,
+                                reason: "Too many events in 1 block! ",
+                            });
                         }
-                    });
-                }
-            }
 
-            await this.sendToDB(log);
+                        // Stops on timeout
+                        const elapsedTime = new Date().getTime() - startTime.getTime();
+                        if (this._timeout > 0 && elapsedTime > this._timeout) {
+                            errors.throwError({
+                                type: errors.WatcherError.ERROR_WATCHER_TIMEOUT,
+                                reason: "Timeout while getting events.",
+                                params: {
+                                    elapsedTime: elapsedTime + " ms",
+                                    timeoutLimit: this._timeout + " ms"
+                                }
+                            });
+                        }
 
-            logs = logs.concat(log);
-            start = (end === toBlock) ? end : end + 1;
-            end = toBlock;
-            steps += 1;
+                        steps += 1;
+                    }
+
+                });
         }
 
-        console.log(logs.length + " event(s) detected!", "required " + steps + " steps");
+        await this.sendToDB(log);
+        start = (end === toBlock) ? end : end + 1;
+        end = toBlock;
+        steps += 1; nbEvents += log.length;
+
+        console.log(nbEvents + " event(s) detected!", "required " + steps + " steps");
     }
 
     /**
@@ -346,6 +366,7 @@ export default class EthereumWatcher extends Watcher {
      * @returns {EventInfoDataStruct} the required information to build a db node
      */
     private async extractData(logEntry: ethers.providers.Log): Promise<EventInfoDataStruct> {
+
         const data = this._event.decode(logEntry.data, logEntry.topics);
         const DES: DataExtractionStrategies = this._strategies.DataExtractionStrategy;
         const nbIterations = Object.keys(DES).length;
@@ -387,8 +408,6 @@ export default class EthereumWatcher extends Watcher {
 
             eids[DES[i].propName] = result;
         }
-
-        // console.log(logEntry, data, eids);
         return eids;
     }
 
@@ -430,10 +449,11 @@ export default class EthereumWatcher extends Watcher {
         let result;
         await process(init, contractFuncs)
             .then((value) => { result = value; })
-            .catch((error) => {
+            .catch((reason) => {
+                console.error(reason);
                 errors.throwError({
                     type: errors.WatcherError.ERROR_WATCHER_PROCESS_DATA,
-                    reason: "Could not apply Process function. " + error,
+                    reason: "Could not apply Process function. ",
                     params: {
                         usingStrategy: strategy,
                         initValue: init
@@ -458,17 +478,27 @@ export default class EthereumWatcher extends Watcher {
             toBlock,
             address: this._contractAddr,
             topics: [this._event.topic]
-        }).catch(() => { }); // Do nothing in case of error
+        }).catch(() => {
+            errors.throwError({
+                type: errors.WatcherError.ERROR_WATCHER_PROVIDER_GETLOGS,
+                reason: "The provider could not get the data",
+            });
+        });
 
         let result: EventInfoDataStruct[];
 
         if (logs) {
             await this.getLogData(logs)
                 .then((eids) => { result = eids; })
-                .catch((error) => {
+                .catch((reason) => {
+                    console.error(reason);
                     errors.throwError({
                         type: errors.WatcherError.ERROR_WATCHER_GETLOGDATA,
-                        reason: error
+                        reason: "Could not get the log data",
+                        params: {
+                            fromBlock,
+                            toBlock
+                        }
                     });
                 });
         }
