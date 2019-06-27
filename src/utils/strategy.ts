@@ -47,6 +47,11 @@ export interface ContractCall extends Strategy {
      * In case the contract's method returns multiple result as Object, specify the attribute name. Check the contract's ABI twice.
      */
     resAttr?: string;
+
+    /**
+     * Not all contract call are sucessfull, this option offers you the possiblity to ignore failed calls.
+     */
+    ignoreError: boolean;
 }
 
 /**
@@ -54,7 +59,7 @@ export interface ContractCall extends Strategy {
  */
 export declare interface FromData extends Strategy {
     /**
-     * The name tag of the data in the log entry. Check the contract's ABI for the exact name
+     * The name tag of the data in the log entry for EventInfoDataStruct. Check the contract's ABI for the exact name
      */
     attrName: string;
 }
@@ -110,7 +115,8 @@ export declare interface NodeStrategy {
  */
 export interface MergeStrategy {
     /**
-     * For each "dbProp" defined in the DB model, associate with "propName" of DES
+     * For each "dbProp" defined in the DB model, associate with "propName" of DES.
+     * By default, DES already produced "eventTime" and "blockheight" for EventInfoDataStruct.
      */
     [dbProp: string]: string;
 }
@@ -121,6 +127,7 @@ export interface MergeStrategy {
 export interface CreateStrategy {
     /**
      * For each "dbProp" defined in the DB model, associate with "propName" of DES
+     * By default, DES already produced "eventTime" and "blockheight" for EventInfoDataStruct.
      */
     [dbProp: string]: string;
 }
@@ -132,4 +139,12 @@ export interface CreateStrategy {
  */
 export async function defaultDataProcess(data: any, contractFunctions: Bucket<ethers.ContractFunction>) {
     return data.toString();
+}
+
+/**
+ * The default process for CallbackFunction. Note that any CallbackFunction should have the same signature as this
+ * @param data
+ */
+export function defaultCallbackFunction(data: any) {
+    return data;
 }

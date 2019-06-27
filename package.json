@@ -1,13 +1,13 @@
 {
   "name": "argosjs",
-  "version": "0.2.8",
+  "version": "0.3.0",
   "description": "Ethereum smart-contract events visualiser ",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "prebuild": "tslint -c tslint.json -p tsconfig.json --fix",
     "build": "tsc",
-    "doc": "typedoc --out docs/ src/",
+    "doc": "typedoc --out argosjs-docs/docs src/",
     "dist": "npm run build && npm run doc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -45,7 +45,6 @@
     "typedoc": "^0.14.2"
   },
   "directories": {
-    "doc": "docs",
     "example": "examples"
   }
 }

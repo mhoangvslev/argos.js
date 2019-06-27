@@ -4,3 +4,6 @@
 [submodule "vendor/neovis.js"]
 	path = vendor/neovis.js
 	url = https://github.com/mhoangvslev/neovis.js
+[submodule "argosjs-docs"]
+	path = argosjs-docs
+	url = https://github.com/mhoangvslev/argosjs-docs

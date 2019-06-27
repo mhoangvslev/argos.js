@@ -68,7 +68,7 @@ export default abstract class Watcher {
 
     /**
      * Watch event with particular model
-     * @param {string} eventName name of the event, usually 'Transfer'
+     * @param {string} eventName name of the event
      * @param {Neode.SchemaObject} dbModel the model loaded via require()
      * @param {Date} fromDate timestamp
      * @param {Date} toDate timestamp

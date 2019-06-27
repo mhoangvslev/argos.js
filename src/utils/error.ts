@@ -22,13 +22,13 @@ export type ArgosError = WatcherError | DatabaseError;
 export interface ErrorMessage {
     type: ArgosError;
     reason: string;
-    params?: { [name: string]: any };
+    dump?: { [name: string]: any };
 }
 
 export function throwError(em: ErrorMessage) {
     const error = new Error();
     error.name = em.type;
     error.message = em.reason + "\n";
-    console.error(em.params);
+    console.log(em.dump);
     throw error;
 }

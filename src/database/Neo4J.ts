@@ -123,15 +123,6 @@ export default class Neo4J extends Database {
             query: "MATCH (n) DETACH DELETE n"
         };
         await this.executeQuery(cypher);
-        /*.catch((err) =>
-            errors.throwError({
-                type: errors.DatabaseError.ERROR_DB_QUERY,
-                reason: "Could not clear database \n" + err,
-                params: {
-                    query: cypher,
-                }
-            })
-        );*/
     }
 
     /**
@@ -141,19 +132,17 @@ export default class Neo4J extends Database {
      */
     public async executeQuery(queryData: QueryData): Promise<Record[]> {
         await this.dbReconnect();
-        let result;
-        await this._dbInstance.cypher(queryData.query, queryData.params)
-            .then((statementResult) => { result = statementResult.records; })
+        const result = await this._dbInstance.cypher(queryData.query, queryData.params)
             .catch((err) =>
                 errors.throwError({
                     type: errors.DatabaseError.ERROR_DB_QUERY,
                     reason: "Could not execute query. \n" + err,
-                    params: {
+                    dump: {
                         query: queryData
                     }
                 })
             );
-        return result;
+        return (result) ? result.records : undefined;
     }
 
     /**
@@ -163,15 +152,12 @@ export default class Neo4J extends Database {
      */
     public async executeQueries(queries: QueryData[]): Promise<any> {
         await this.dbReconnect();
-        let result;
-
-        await this._dbInstance.batch(queries)
-            .then((records) => { result = records; })
+        const result = await this._dbInstance.batch(queries)
             .catch((err) =>
                 errors.throwError({
                     type: errors.DatabaseError.ERROR_DB_QUERY,
                     reason: "Could not batch-execute queries" + err,
-                    params: {
+                    dump: {
                         queries
                     }
                 })
@@ -315,9 +301,9 @@ export default class Neo4J extends Database {
 
                 // Format for prepared query params: { param1: val1, param2: val2, ... }
                 const cypherParams: { [alias: string]: any } = {};
-                Object.keys(sourceNode.mergeStrategy).map((dbAttr) => { cypherParams[sourceNode.mergeStrategy[dbAttr] + dbAttr] = eids[sourceNode.mergeStrategy[dbAttr]]; });
-                Object.keys(targetNode.mergeStrategy).map((dbAttr) => { cypherParams[targetNode.mergeStrategy[dbAttr] + dbAttr] = eids[targetNode.mergeStrategy[dbAttr]]; });
-                Object.keys(relStrat.createStrategy).map((dbAttr) => { cypherParams[relStrat.createStrategy[dbAttr] + dbAttr] = eids[relStrat.createStrategy[dbAttr]]; });
+                Object.keys(sourceNode.mergeStrategy).map((dbAttr) => { cypherParams[sourceNode.mergeStrategy[dbAttr] + dbAttr] = this.prepareCypherParams(eids, sourceNode.mergeStrategy[dbAttr]); });
+                Object.keys(targetNode.mergeStrategy).map((dbAttr) => { cypherParams[targetNode.mergeStrategy[dbAttr] + dbAttr] = this.prepareCypherParams(eids, targetNode.mergeStrategy[dbAttr]); });
+                Object.keys(relStrat.createStrategy).map((dbAttr) => { cypherParams[relStrat.createStrategy[dbAttr] + dbAttr] = this.prepareCypherParams(eids, relStrat.createStrategy[dbAttr]); });
 
                 // Handle direction
                 let directionFrom = "-";
@@ -353,15 +339,39 @@ export default class Neo4J extends Database {
         await this.executeQueries(queries);
     }
 
+    private prepareCypherParams(eids: EventInfoDataStruct, eidsKey: string): any {
+        const result = eids[eidsKey];
+        if (result) {
+            return result;
+        }
+
+        errors.throwError({
+            type: errors.DatabaseError.ERROR_DB_PERSIST,
+            reason: "propName '" + eidsKey + "' was not found in the EventInfoDataStruct. Check for DataExtractionStrategies",
+            dump: {
+                eids,
+                eidsKey
+            }
+        });
+    }
+
     /**
      * Find the type of Node property
      * @param nodeStrat
      * @param propKey
      */
     private findNodeAttrType(nodeStrat: NodeStrategy, propKey: string): string {
-        const prop: Neode.OtherNodeProperties = this._models[nodeStrat.nodeType][propKey] as Neode.OtherNodeProperties;
-        // console.log(nodeStrat.nodeType, propKey);
-        return prop.type;
+        try {
+            const prop = this._models[nodeStrat.nodeType][propKey] as Neode.OtherNodeProperties;
+            return prop.type;
+        } catch (error) {
+            errors.throwError({
+                type: errors.DatabaseError.ERROR_DB_PERSIST,
+                reason: "Could not find type for node property `" + propKey + "`. Check the coherence between DB model and PersistenceStrategies "
+            });
+        }
+
+        return undefined;
     }
 
     /**
@@ -371,15 +381,24 @@ export default class Neo4J extends Database {
      */
     private findRelationshipAttrType(relStrat: RelationshipStrategy, propKey: string): string {
 
-        // Search in the models the model that contain the relationship
-        const modelRel = Object.keys(this._models).filter((model) => {
-            return this.findRelationshipModels(model).filter((relKey) => {
-                return (this._models[model][relKey] as Neode.BaseRelationshipNodeProperties).relationship === relStrat.relType;
-            });
-        })[0];
+        try {
+            // Search in the models the model that contain the relationship
+            const modelRel = Object.keys(this._models).filter((model) => {
+                return this.findRelationshipModels(model).filter((relKey) => {
+                    return (this._models[model][relKey] as Neode.BaseRelationshipNodeProperties).relationship === relStrat.relType;
+                });
+            })[0];
 
-        const propType = (this._models[modelRel][relStrat.relAlias] as Neode.BaseRelationshipNodeProperties).properties[propKey];
-        return propType;
+            const propType = (this._models[modelRel][relStrat.relAlias] as Neode.BaseRelationshipNodeProperties).properties[propKey];
+            return propType;
+        } catch (error) {
+            errors.throwError({
+                type: errors.DatabaseError.ERROR_DB_PERSIST,
+                reason: "Could not find type for relationship property `" + propKey + "`. Check the coherence between DB model and PersistenceStrategies "
+            });
+        }
+
+        return undefined;
     }
 
     /**
