@@ -1,0 +1,50 @@
+{
+  "name": "argosjs",
+  "version": "0.3.0",
+  "description": "Ethereum smart-contract events visualiser ",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "prebuild": "tslint -c tslint.json -p tsconfig.json --fix",
+    "build": "tsc",
+    "doc": "typedoc --out argosjs-docs/docs src/",
+    "dist": "npm run build && npm run doc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mhoangvslev/argos.js.git"
+  },
+  "keywords": [
+    "ethereum",
+    "smart-contract",
+    "data-visualisation"
+  ],
+  "author": "Minh-Hoang DANG",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mhoangvslev/argos.js/issues"
+  },
+  "homepage": "https://github.com/mhoangvslev/argos.js#readme",
+  "dependencies": {
+    "dotenv": "^8.0.0",
+    "ethers": "^4.0.30",
+    "neo4j-driver": "^1.7.5",
+    "neode": "^0.2.16",
+    "neovis-ts": "^1.0.8",
+    "net": "^1.0.2",
+    "tslint": "^5.17.0",
+    "typescript": "^3.5.1",
+    "web3": "^1.0.0-beta.55",
+    "webpack": "^4.33.0"
+  },
+  "devDependencies": {
+    "@types/node": "^11.13.13",
+    "jsdoc": "^3.6.2",
+    "marked": "^0.6.2",
+    "typedoc": "^0.14.2"
+  },
+  "directories": {
+    "example": "examples"
+  }
+}
