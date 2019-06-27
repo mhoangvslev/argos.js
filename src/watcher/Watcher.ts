@@ -10,11 +10,12 @@ export interface WatcherConstructor {
     address: string;
     db: DatabaseConstructorType;
     abi: string;
-    providerConf: object;
+    providerConf: ProviderConfig;
     exportDir: string;
 }
 
 export interface ProviderConfig {
+    logSizePerOp: number;
     default?: {
         network?: string | Network
     };

@@ -19,16 +19,37 @@ export const enum DatabaseError {
 
 export type ArgosError = WatcherError | DatabaseError;
 
+/**
+ * The interface for message
+ */
 export interface ErrorMessage {
     type: ArgosError;
+    level: "log" | "warn" | "error";
     reason: string;
     dump?: { [name: string]: any };
 }
 
+/**
+ * Throw an error or just log to the console.
+ * @todo: Some error can be ignored. Ignore it here
+ * @param em
+ */
 export function throwError(em: ErrorMessage) {
+
     const error = new Error();
     error.name = em.type;
     error.message = em.reason + "\n";
-    console.log(em.dump);
-    throw error;
+
+    if (em.dump) { console.log(em.dump); }
+
+    switch (em.level) {
+        case "log":
+            console.log(error);
+            break;
+        case "warn":
+            // console.log(error.name + ": " + error.message);
+            throw error;
+        case "error": default:
+            throw error;
+    }
 }
