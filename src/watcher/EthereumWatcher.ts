@@ -24,6 +24,7 @@ export default class EthereumWatcher extends Watcher {
     private _latestTime: number;
     private _latestBlockNo: number;
     private _startTime: Date;
+    private _logSizePerOp: number;
 
     /**
      * Create a watcher for Ethereum blockchain
@@ -52,6 +53,7 @@ export default class EthereumWatcher extends Watcher {
 
         this._event = undefined;
         this._timeout = this._config.timeout;
+        this._logSizePerOp = this._config.logSizePerOp;
 
         console.log("Ethereum Watcher initiated!");
     }
@@ -66,8 +68,6 @@ export default class EthereumWatcher extends Watcher {
     public async watchEvents(eventName: string, fromDate?: Date, toDate?: Date) {
 
         this.refreshDB();
-
-        this._contract.on(eventName, console.log);
 
         const fromBlock: number = fromDate ? await this.timeToBlock(fromDate) : 0;
         const toBlock: number = toDate ? await this.timeToBlock(toDate) : await this._latestBlockNo;
@@ -123,6 +123,7 @@ export default class EthereumWatcher extends Watcher {
                         errors.throwError({
                             type: errors.WatcherError.ERROR_WATCHER_WATCHEVENTS,
                             reason: "Could not find block range...",
+                            level: "warn",
                             dump: {
                                 fromBlock,
                                 toBlock
@@ -135,7 +136,7 @@ export default class EthereumWatcher extends Watcher {
                         case errors.WatcherError.ERROR_WATCHER_WATCHEVENTS:
                             console.log("Cache not loaded or corrupted, updating...");
                             this._clearDB = true;
-                            await this.getEvents(eventName, fromBlock, toBlock);
+                            await this.getEvents(eventName, fromBlock, toBlock).catch((error) => { throw error; });
                             break;
                         default:
                             throw error;
@@ -150,7 +151,7 @@ export default class EthereumWatcher extends Watcher {
 
         const roundMinutes = Math.trunc(elapsedMinutes);
         const roundSeconds = Math.trunc(elapsedSeconds - roundMinutes * 60);
-        const roundMilis = Math.trunc(elapsedMilli - roundSeconds * 1000);
+        const roundMilis = Math.trunc(elapsedMilli - roundMinutes * 60000 - roundSeconds * 1000);
 
         console.log("Finished in " + roundMinutes + " mins " + roundSeconds + " s " + roundMilis + " ms");
     }
@@ -192,7 +193,7 @@ export default class EthereumWatcher extends Watcher {
      */
     public async getLogData(logPart: ethers.providers.Log[]) {
         this.checkTimeout();
-        return (logPart && logPart.length > 0) ? await Promise.all(logPart.map(async (logEntry) => await this.extractData(logEntry))) : [];
+        return await Promise.all(logPart.map(async (logEntry) => await this.extractData(logEntry)));
     }
 
     /**
@@ -205,6 +206,7 @@ export default class EthereumWatcher extends Watcher {
             errors.throwError({
                 type: errors.WatcherError.ERROR_WATCHER_GETEVENTS,
                 reason: "Timeout while getting events.",
+                level: "error",
                 dump: {
                     elapsedTime: elapsedTime + " ms",
                     timeoutLimit: this._timeout + " ms"
@@ -227,10 +229,8 @@ export default class EthereumWatcher extends Watcher {
         }
 
         const self = this;
-        let start = fromBlock;
-        let end = toBlock;
-        let nbEvents = 0;
-        let steps = 0;
+        let start = fromBlock; let end = toBlock;
+        let nbEvents = 0; let steps = 0;
         this._startTime = new Date();
 
         while (start !== end) {
@@ -240,12 +240,10 @@ export default class EthereumWatcher extends Watcher {
             // Devide the batch by 2 until the right amount is found
             while (eidss === undefined) {
                 const temp = await self.getEventPatch(eventName, start, end).catch((error: Error) => {
-                    /*if (error.name !== errors.WatcherError.ERROR_WATCHER_PROVIDER_GETLOGS) {
+                    // In case of ERROR_WATCHER_PROVIDER_GETLOGS, proceed to dichotomy
+                    if (error.name !== errors.WatcherError.ERROR_WATCHER_PROVIDER_GETLOGS) {
                         throw error;
-                    } else {
-                        console.log(error);
-                    }*/
-                    throw error;
+                    }
                 });
 
                 if (temp) {
@@ -258,6 +256,7 @@ export default class EthereumWatcher extends Watcher {
                     if (start === end) {
                         errors.throwError({
                             type: errors.WatcherError.ERROR_WATCHER_GETEVENTS,
+                            level: "error",
                             reason: "Too many events in 1 block! ",
                         });
                     }
@@ -379,7 +378,7 @@ export default class EthereumWatcher extends Watcher {
      * @param {ethers.providers.Log} logEntry a log entry
      * @returns {EventInfoDataStruct} the required information to build a db node
      */
-    private async extractData(logEntry: ethers.providers.Log) {
+    private async extractData(logEntry: ethers.providers.Log): Promise<EventInfoDataStruct> {
 
         this.checkTimeout();
 
@@ -419,6 +418,7 @@ export default class EthereumWatcher extends Watcher {
                 default:
                     errors.throwError({
                         type: errors.WatcherError.ERROR_WATCHER_EXTRACT_DATA,
+                        level: "error",
                         reason: "Unable to find strategy for " + DES[i] + "."
                     });
             }
@@ -437,7 +437,13 @@ export default class EthereumWatcher extends Watcher {
 
         const contractFuncs = this._contract.functions;
 
-        if (!Object.keys(contractFuncs).includes(funcName)) { throw new Error("This contract does not contain function " + funcName); }
+        if (!Object.keys(contractFuncs).includes(funcName)) {
+            errors.throwError({
+                type: errors.WatcherError.ERROR_WATCHER_CONTRACT_CALL,
+                level: "error",
+                reason: "This contract does not contain function " + funcName
+            });
+        }
 
         const func: ContractFunction = this._contract.functions[funcName];
         const process: Promise<any> = func.apply(this._contract, args);
@@ -457,11 +463,11 @@ export default class EthereumWatcher extends Watcher {
         const process = strategy.process || defaultDataProcess;
         const contractFuncs = this._contract.functions;
         const result = await process(init, contractFuncs)
-            .catch((reason) => {
-                console.log(reason);
+            .catch((reason: Error) => {
                 errors.throwError({
                     type: errors.WatcherError.ERROR_WATCHER_PROCESS_DATA,
-                    reason: "Could not apply Process function. ",
+                    reason: "Could not apply Process function. " + reason.message,
+                    level: "error",
                     dump: {
                         usingStrategy: strategy,
                         initValue: init
@@ -489,25 +495,35 @@ export default class EthereumWatcher extends Watcher {
             toBlock,
             address: this._contractAddr,
             topics: [this._event.topic]
-        }).catch((reason) => {
-            console.log(reason);
+        }).catch((reason: Error) => {
             errors.throwError({
                 type: errors.WatcherError.ERROR_WATCHER_PROVIDER_GETLOGS,
-                reason: "Provider could not get logs. This is due to the provider's restriction on data.",
-                dump: {
-                    fromBlock,
-                    toBlock
-                }
+                level: "warn",
+                reason: "Provider could not get logs. This is due to the provider's restriction on data." + reason.message
             });
-        }); // Surely because of provider's restriction on data. Ignore
+        });
 
         if (logs) {
+
+            // User-defined log size
+            if (logs.length > this._logSizePerOp) {
+                errors.throwError({
+                    type: errors.WatcherError.ERROR_WATCHER_PROVIDER_GETLOGS,
+                    level: "warn",
+                    reason: "Exceeded the amount of logSize permitted per operation. Consider lower the 'logSizePerOp' in the config.",
+                    dump: {
+                        logLength: logs.length,
+                        maxLength: this._logSizePerOp
+                    }
+                });
+            }
+
             const eidss = await this.getLogData(logs)
-                .catch((reason) => {
-                    console.log(reason);
+                .catch((reason: Error) => {
                     errors.throwError({
                         type: errors.WatcherError.ERROR_WATCHER_GETLOGDATA,
-                        reason: "Could not get the log data",
+                        level: "error",
+                        reason: "Could not get the log data" + reason.message,
                         dump: {
                             fromBlock,
                             toBlock

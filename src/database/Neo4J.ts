@@ -137,6 +137,7 @@ export default class Neo4J extends Database {
                 errors.throwError({
                     type: errors.DatabaseError.ERROR_DB_QUERY,
                     reason: "Could not execute query. \n" + err,
+                    level: "error",
                     dump: {
                         query: queryData
                     }
@@ -157,6 +158,7 @@ export default class Neo4J extends Database {
                 errors.throwError({
                     type: errors.DatabaseError.ERROR_DB_QUERY,
                     reason: "Could not batch-execute queries" + err,
+                    level: "error",
                     dump: {
                         queries
                     }
@@ -348,6 +350,7 @@ export default class Neo4J extends Database {
         errors.throwError({
             type: errors.DatabaseError.ERROR_DB_PERSIST,
             reason: "propName '" + eidsKey + "' was not found in the EventInfoDataStruct. Check for DataExtractionStrategies",
+            level: "warn",
             dump: {
                 eids,
                 eidsKey
@@ -367,6 +370,7 @@ export default class Neo4J extends Database {
         } catch (error) {
             errors.throwError({
                 type: errors.DatabaseError.ERROR_DB_PERSIST,
+                level: "error",
                 reason: "Could not find type for node property `" + propKey + "`. Check the coherence between DB model and PersistenceStrategies "
             });
         }
@@ -394,6 +398,7 @@ export default class Neo4J extends Database {
         } catch (error) {
             errors.throwError({
                 type: errors.DatabaseError.ERROR_DB_PERSIST,
+                level: "error",
                 reason: "Could not find type for relationship property `" + propKey + "`. Check the coherence between DB model and PersistenceStrategies "
             });
         }
