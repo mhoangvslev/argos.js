@@ -25,6 +25,7 @@ export default class EthereumWatcher extends Watcher {
     private _latestBlockNo: number;
     private _startTime: Date;
     private _logSizePerOp: number;
+    private _nbContractCall: number;
 
     /**
      * Create a watcher for Ethereum blockchain
@@ -42,7 +43,7 @@ export default class EthereumWatcher extends Watcher {
 
         this._contractAddr = contractAddr;
         this._dbType = dbType;
-        this._dbService = undefined;
+        this._dbService = DatabaseFactory.createDbInstance(this._dbType);
         this._clearDB = clearDB;
 
         this._config = providerConfig;
@@ -53,7 +54,8 @@ export default class EthereumWatcher extends Watcher {
 
         this._event = undefined;
         this._timeout = this._config.timeout;
-        this._logSizePerOp = this._config.logSizePerOp;
+        this._logSizePerOp = this._config.logSizePerOp || 900;
+
 
         console.log("Ethereum Watcher initiated!");
     }
@@ -66,8 +68,6 @@ export default class EthereumWatcher extends Watcher {
      * @param {number} toDate timestamp
      */
     public async watchEvents(eventName: string, fromDate?: Date, toDate?: Date) {
-
-        this.refreshDB();
 
         const fromBlock: number = fromDate ? await this.timeToBlock(fromDate) : 0;
         const toBlock: number = toDate ? await this.timeToBlock(toDate) : await this._latestBlockNo;
@@ -282,6 +282,10 @@ export default class EthereumWatcher extends Watcher {
      */
     public setStrategies(strategies: Strategies) {
         this._strategies = strategies;
+        this._nbContractCall = Object.keys(this._strategies.DataExtractionStrategy).filter((iteration) => {
+            const strategy = this._strategies.DataExtractionStrategy[parseInt(iteration)].strategy;
+            return (strategy as ContractCall) ? true : false;
+        }).length;
     }
 
     /**
@@ -359,18 +363,6 @@ export default class EthereumWatcher extends Watcher {
         await this._dbService.persistDataToDB(eidss, this._strategies.PersistenceStrategy);
         await this.exportCSV();
         console.log("Database updated!");
-    }
-
-    /**
-     * Refresh the database connection, do an action then close connection
-     * @param {function} callback the action to perform once the connection is interupted
-     */
-    private refreshDB() {
-        if (this._dbService !== undefined) {
-            this._dbService.dbReconnect();
-        } else {
-            this._dbService = DatabaseFactory.createDbInstance(this._dbType);
-        }
     }
 
     /**
@@ -506,7 +498,7 @@ export default class EthereumWatcher extends Watcher {
         if (logs) {
 
             // User-defined log size
-            if (logs.length > this._logSizePerOp) {
+            if (logs.length >= this._logSizePerOp * this._nbContractCall) {
                 errors.throwError({
                     type: errors.WatcherError.ERROR_WATCHER_PROVIDER_GETLOGS,
                     level: "warn",
@@ -516,21 +508,21 @@ export default class EthereumWatcher extends Watcher {
                         maxLength: this._logSizePerOp
                     }
                 });
-            }
-
-            const eidss = await this.getLogData(logs)
-                .catch((reason: Error) => {
-                    errors.throwError({
-                        type: errors.WatcherError.ERROR_WATCHER_GETLOGDATA,
-                        level: "error",
-                        reason: "Could not get the log data" + reason.message,
-                        dump: {
-                            fromBlock,
-                            toBlock
-                        }
+            } else {
+                const eidss = await this.getLogData(logs)
+                    .catch((reason: Error) => {
+                        errors.throwError({
+                            type: errors.WatcherError.ERROR_WATCHER_GETLOGDATA,
+                            level: "error",
+                            reason: "Could not get the log data" + reason.message,
+                            dump: {
+                                fromBlock,
+                                toBlock
+                            }
+                        });
                     });
-                });
-            return eidss ? eidss : undefined;
+                return eidss ? eidss : undefined;
+            }
         }
         return undefined;
     }
