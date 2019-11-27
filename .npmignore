@@ -6,5 +6,5 @@ examples
 .gitmodules
 tsconfig.json
 tslint.json
-argosjs-docs
+docs
 test

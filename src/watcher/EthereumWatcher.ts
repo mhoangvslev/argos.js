@@ -56,7 +56,6 @@ export default class EthereumWatcher extends Watcher {
         this._timeout = this._config.timeout;
         this._logSizePerOp = this._config.logSizePerOp || 900;
 
-
         console.log("Ethereum Watcher initiated!");
     }
 
