@@ -21,6 +21,7 @@ jobs:
       run: |
         npm install
         npm run build --if-present
+        npm install typedoc --global
         typedoc --out docs/ src/
       env:
         CI: "true"
